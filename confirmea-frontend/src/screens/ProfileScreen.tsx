@@ -33,10 +33,7 @@ export default function ProfileScreen(_props: Props) {
       </View>
 
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
-      <View style={styles.row}>
-        <Ionicons name="cash-outline" size={20} color={colors.apricotDark} />
-        <Text style={styles.rowLabel}>Payment is in person — no card on file</Text>
-      </View>
+      
       <View style={styles.row}>
         <Ionicons name="notifications-outline" size={20} color={colors.apricotDark} />
         <Text style={styles.rowLabel}>Notifications</Text>
@@ -45,6 +42,16 @@ export default function ProfileScreen(_props: Props) {
       <View style={styles.row}>
         <Ionicons name="help-circle-outline" size={20} color={colors.apricotDark} />
         <Text style={styles.rowLabel}>Help & support</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </View>
+      <View style={styles.row}>
+        <Ionicons name="settings-outline" size={20} color={colors.apricotDark} />
+        <Text style={styles.rowLabel}>Settings</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </View>
+      <View style={styles.row}>
+        <Ionicons name="application-outline" size={20} color={colors.apricotDark} />
+        <Text style={styles.rowLabel}>Apply to add your business to Conirmea</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </View>
 
