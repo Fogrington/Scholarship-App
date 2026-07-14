@@ -1,15 +1,23 @@
 import React from "react";
-import { View, Text, StyleSheet, SafeAreaView, Pressable } from "react-native";
+import { View, Text, StyleSheet, SafeAreaView, Pressable, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
+import { useAuth } from "../context/AuthContext";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { ClientTabParamList, RootStackParamList } from "../navigation/RootNavigator";
+import type { ClientTabParamList } from "../navigation/RootNavigator";
 
 type Props = BottomTabScreenProps<ClientTabParamList, "ProfileTab">;
 
-export default function ProfileScreen({ navigation }: Props) {
-  const rootNavigation = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+export default function ProfileScreen(_props: Props) {
+  const { displayName, logout } = useAuth();
+
+  const confirmLogout = () => {
+    Alert.alert("Log out?", "You'll need to log back in to book slots.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Log out", style: "destructive", onPress: logout },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <Text style={[typography.heading, styles.title]}>Profile</Text>
@@ -19,36 +27,15 @@ export default function ProfileScreen({ navigation }: Props) {
           <Ionicons name="person" size={26} color={colors.white} />
         </View>
         <View style={{ marginLeft: spacing.md }}>
-          <Text style={typography.subheading}>Fletch</Text>
+          <Text style={typography.subheading}>{displayName ?? "Guest"}</Text>
           <Text style={typography.caption}>Newcastle, NSW</Text>
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>PROTOTYPE — PREVIEW OTHER INTERFACES</Text>
-
-      <Pressable
-        style={styles.row}
-        onPress={() => rootNavigation?.navigate("BusinessDashboard")}
-      >
-        <Ionicons name="storefront-outline" size={20} color={colors.apricotDark} />
-        <Text style={styles.rowLabel}>Business dashboard</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      </Pressable>
-
-      <Pressable
-        style={styles.row}
-        onPress={() => rootNavigation?.navigate("Admin")}
-      >
-        <Ionicons name="shield-checkmark-outline" size={20} color={colors.apricotDark} />
-        <Text style={styles.rowLabel}>Admin approvals</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      </Pressable>
-
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
       <View style={styles.row}>
-        <Ionicons name="card-outline" size={20} color={colors.apricotDark} />
-        <Text style={styles.rowLabel}>Payment methods</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        <Ionicons name="cash-outline" size={20} color={colors.apricotDark} />
+        <Text style={styles.rowLabel}>Payment is in person — no card on file</Text>
       </View>
       <View style={styles.row}>
         <Ionicons name="notifications-outline" size={20} color={colors.apricotDark} />
@@ -60,6 +47,11 @@ export default function ProfileScreen({ navigation }: Props) {
         <Text style={styles.rowLabel}>Help & support</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </View>
+
+      <Pressable style={styles.logoutRow} onPress={confirmLogout}>
+        <Ionicons name="log-out-outline" size={20} color={colors.warning} />
+        <Text style={styles.logoutLabel}>Log out</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -103,4 +95,13 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   rowLabel: { ...typography.body, flex: 1, marginLeft: spacing.md, fontWeight: "600" },
+  logoutRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    paddingVertical: 14,
+  },
+  logoutLabel: { color: colors.warning, fontWeight: "700", marginLeft: 8 },
 });

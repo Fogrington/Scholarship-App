@@ -4,14 +4,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { mockListings } from "../data/mockData";
 import Badge from "../components/Badge";
+import { useBookings } from "../context/BookingsContext";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { ClientStackParamList } from "../navigation/RootNavigator";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { ClientStackParamList, ClientTabParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<ClientStackParamList, "ListingDetail">;
 
 export default function ListingDetailScreen({ route, navigation }: Props) {
   const { listingId } = route.params;
   const listing = mockListings.find((l) => l.id === listingId);
+  const { addBooking, isBooked } = useBookings();
   const [confirmed, setConfirmed] = useState(false);
 
   if (!listing) {
@@ -22,16 +25,27 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
     );
   }
 
+  const alreadyBooked = confirmed || isBooked(listing.id);
+
   const discounted = listing.discountPercent
     ? Math.round(listing.price * (1 - listing.discountPercent / 100))
     : listing.price;
 
   const handleConfirm = () => {
+    addBooking(listing);
     setConfirmed(true);
     Alert.alert(
-      "Slot held!",
-      `${listing.service} at ${listing.businessName} is confirmed for ${listing.slotTime}.`,
-      [{ text: "View my bookings", onPress: () => navigation.navigate("Home") }]
+      "Slot reserved!",
+      `${listing.service} at ${listing.businessName} is booked for ${listing.slotTime}. Pay ${listing.businessName} directly when you arrive.`,
+      [
+        {
+          text: "View my bookings",
+          onPress: () =>
+            navigation
+              .getParent<BottomTabNavigationProp<ClientTabParamList>>()
+              ?.navigate("BookingsTab"),
+        },
+      ]
     );
   };
 
@@ -66,7 +80,7 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.priceCard}>
           <View>
-            <Text style={typography.caption}>Total price</Text>
+            <Text style={typography.caption}>Price (pay in person)</Text>
             <View style={styles.priceRow}>
               {listing.discountPercent ? (
                 <Text style={styles.priceOld}>${listing.price}</Text>
@@ -74,25 +88,26 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
               <Text style={styles.price}>${discounted}</Text>
             </View>
           </View>
-          <Badge text="No deposit needed" tone="success" />
+          <Badge text="Pay at the business" tone="success" />
         </View>
 
         <View style={styles.noticeCard}>
           <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
           <Text style={styles.noticeText}>
-            Slots fill fast — this booking is held for 10 minutes while you confirm.
+            No card needed in the app — you'll pay {listing.businessName} directly when
+            you arrive. Slots move fast, so try to be on time.
           </Text>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <Pressable
-          style={[styles.confirmBtn, confirmed && styles.confirmBtnDone]}
+          style={[styles.confirmBtn, alreadyBooked && styles.confirmBtnDone]}
           onPress={handleConfirm}
-          disabled={confirmed}
+          disabled={alreadyBooked}
         >
           <Text style={styles.confirmText}>
-            {confirmed ? "Booking confirmed" : `Confirm for $${discounted}`}
+            {alreadyBooked ? "Slot reserved" : `Reserve slot · $${discounted}`}
           </Text>
         </Pressable>
       </View>

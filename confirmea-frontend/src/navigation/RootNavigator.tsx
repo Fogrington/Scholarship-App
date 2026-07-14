@@ -4,13 +4,13 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../theme/theme";
+import { useAuth } from "../context/AuthContext";
 
+import LoginScreen from "../screens/LoginScreen";
 import HomeScreen from "../screens/HomeScreen";
 import ListingDetailScreen from "../screens/ListingDetailScreen";
 import BookingsScreen from "../screens/BookingsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
-import BusinessDashboardScreen from "../screens/BusinessDashboardScreen";
-import AdminScreen from "../screens/AdminScreen";
 
 export type ClientStackParamList = {
   Home: undefined;
@@ -24,9 +24,8 @@ export type ClientTabParamList = {
 };
 
 export type RootStackParamList = {
+  Login: undefined;
   ClientTabs: undefined;
-  BusinessDashboard: undefined;
-  Admin: undefined;
 };
 
 const ClientStack = createNativeStackNavigator<ClientStackParamList>();
@@ -75,12 +74,16 @@ function ClientTabs() {
 }
 
 export default function RootNavigator() {
+  const { isLoggedIn } = useAuth();
+
   return (
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        <RootStack.Screen name="ClientTabs" component={ClientTabs} />
-        <RootStack.Screen name="BusinessDashboard" component={BusinessDashboardScreen} />
-        <RootStack.Screen name="Admin" component={AdminScreen} />
+        {isLoggedIn ? (
+          <RootStack.Screen name="ClientTabs" component={ClientTabs} />
+        ) : (
+          <RootStack.Screen name="Login" component={LoginScreen} />
+        )}
       </RootStack.Navigator>
     </NavigationContainer>
   );

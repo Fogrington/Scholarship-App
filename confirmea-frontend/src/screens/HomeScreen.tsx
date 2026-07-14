@@ -10,6 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius } from "../theme/theme";
 import { categories, mockListings, Category } from "../data/mockData";
+import { useAuth } from "../context/AuthContext";
 import CategoryPill from "../components/CategoryPill";
 import ServiceCard from "../components/ServiceCard";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -18,6 +19,7 @@ import type { ClientStackParamList } from "../navigation/RootNavigator";
 type Props = NativeStackScreenProps<ClientStackParamList, "Home">;
 
 export default function HomeScreen({ navigation }: Props) {
+  const { displayName } = useAuth();
   const [activeCategory, setActiveCategory] = useState<Category | "All">("All");
   const [search, setSearch] = useState("");
 
@@ -36,7 +38,7 @@ export default function HomeScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hey Fletch 👋</Text>
+          <Text style={styles.greeting}>Hey {displayName ?? "there"} 👋</Text>
           <View style={styles.locationRow}>
             <Ionicons name="location-sharp" size={14} color={colors.apricotDark} />
             <Text style={styles.locationText}>Newcastle, NSW</Text>

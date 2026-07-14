@@ -4,13 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, shadow, typography } from "../theme/theme";
 import { Listing } from "../data/mockData";
 
-function formatCountdown(mins: number) {
-  if (mins < 60) return `in ${mins} min`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `in ${hours}h`;
-  return `in ${Math.round(hours / 24)}d`;
-}
-
 type Props = {
   listing: Listing;
   onPress: () => void;
@@ -56,9 +49,7 @@ export default function ServiceCard({ listing, onPress }: Props) {
         <View style={[styles.rowBetween, { marginTop: spacing.sm }]}>
           <View style={styles.timeTag}>
             <Ionicons name="time-outline" size={13} color={colors.warning} />
-            <Text style={styles.timeText}>
-              {listing.slotTime} · {formatCountdown(listing.minutesUntil)}
-            </Text>
+            <Text style={styles.timeText}>{listing.slotTime}</Text>
           </View>
 
           <View style={styles.priceWrap}>
