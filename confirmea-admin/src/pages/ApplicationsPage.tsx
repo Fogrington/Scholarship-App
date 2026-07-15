@@ -3,14 +3,15 @@ import { useAdminData } from "../context/AdminDataContext";
 import EmptyState from "../components/EmptyState";
 import Pill from "../components/Pill";
 import ApplicationDrawer from "./ApplicationDrawer";
-import type { Application, ApplicationStatus } from "../data/mockData";
+import type { ApplicationStatus } from "../data/mockData";
 
 const TABS: ApplicationStatus[] = ["pending", "approved", "rejected"];
 
 export default function ApplicationsPage() {
   const { applications } = useAdminData();
   const [tab, setTab] = useState<ApplicationStatus>("pending");
-  const [selected, setSelected] = useState<Application | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = applications.find((a) => a.id === selectedId) ?? null;
 
   const filtered = applications.filter((a) => a.status === tab);
 
@@ -41,7 +42,7 @@ export default function ApplicationsPage() {
             <EmptyState message={`No ${tab} applications right now.`} />
           ) : (
             filtered.map((a) => (
-              <div key={a.id} className="row clickable" onClick={() => setSelected(a)}>
+              <div key={a.id} className="row clickable" onClick={() => setSelectedId(a.id)}>
                 <div className="row-main">
                   <div className="row-title">{a.businessName}</div>
                   <div className="row-sub">
@@ -58,7 +59,7 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      {selected && <ApplicationDrawer application={selected} onClose={() => setSelected(null)} />}
+      {selected && <ApplicationDrawer application={selected} onClose={() => setSelectedId(null)} />}
     </>
   );
 }

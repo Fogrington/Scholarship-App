@@ -3,14 +3,15 @@ import { useAdminData } from "../context/AdminDataContext";
 import EmptyState from "../components/EmptyState";
 import Pill from "../components/Pill";
 import ComplaintDrawer from "./ComplaintDrawer";
-import type { Complaint, ComplaintStatus } from "../data/mockData";
+import type { ComplaintStatus } from "../data/mockData";
 
 const TABS: ComplaintStatus[] = ["open", "resolved", "dismissed"];
 
 export default function ComplaintsPage() {
   const { complaints } = useAdminData();
   const [tab, setTab] = useState<ComplaintStatus>("open");
-  const [selected, setSelected] = useState<Complaint | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = complaints.find((c) => c.id === selectedId) ?? null;
 
   const filtered = complaints.filter((c) => c.status === tab);
 
@@ -41,7 +42,7 @@ export default function ComplaintsPage() {
             <EmptyState message={`No ${tab} complaints.`} />
           ) : (
             filtered.map((c) => (
-              <div key={c.id} className="row clickable" onClick={() => setSelected(c)}>
+              <div key={c.id} className="row clickable" onClick={() => setSelectedId(c.id)}>
                 <div className="row-main">
                   <div className="row-title">{c.businessName}</div>
                   <div className="row-sub">
@@ -58,7 +59,7 @@ export default function ComplaintsPage() {
         </div>
       </div>
 
-      {selected && <ComplaintDrawer complaint={selected} onClose={() => setSelected(null)} />}
+      {selected && <ComplaintDrawer complaint={selected} onClose={() => setSelectedId(null)} />}
     </>
   );
 }

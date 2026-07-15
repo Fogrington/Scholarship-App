@@ -3,11 +3,11 @@ import { useAdminData } from "../context/AdminDataContext";
 import EmptyState from "../components/EmptyState";
 import Pill from "../components/Pill";
 import ApplicationDrawer from "./ApplicationDrawer";
-import type { Application } from "../data/mockData";
 
 export default function OverviewPage() {
   const { applications, complaints, businesses, activity } = useAdminData();
-  const [selected, setSelected] = useState<Application | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = applications.find((a) => a.id === selectedId) ?? null;
 
   const pendingApps = applications.filter((a) => a.status === "pending");
   const openComplaints = complaints.filter((c) => c.status === "open");
@@ -48,7 +48,7 @@ export default function OverviewPage() {
               <EmptyState message="All caught up — no pending applications." />
             ) : (
               pendingApps.map((a) => (
-                <div key={a.id} className="row clickable" onClick={() => setSelected(a)}>
+                <div key={a.id} className="row clickable" onClick={() => setSelectedId(a.id)}>
                   <div className="row-main">
                     <div className="row-title">{a.businessName}</div>
                     <div className="row-sub">
@@ -81,7 +81,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {selected && <ApplicationDrawer application={selected} onClose={() => setSelected(null)} />}
+      {selected && <ApplicationDrawer application={selected} onClose={() => setSelectedId(null)} />}
     </>
   );
 }
