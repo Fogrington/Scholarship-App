@@ -1,22 +1,39 @@
 # Confirmea Admin
 
-A proper web app now — Vite + React + TypeScript, with real client-side routing
-(`react-router-dom`) instead of the earlier static HTML pages. Runs on a local dev
-server just like any other web project, at `http://localhost:5173`.
+Vite + React + TypeScript, with real client-side routing (`react-router-dom`). Now
+wired to the real `confirmea-backend` API instead of in-memory mock data — this is the
+first piece of Confirmea where the frontend and backend actually talk to each other.
 
 This is still a **separate app from the Confirmea mobile prototype** — internal admin
-tooling, not something end users touch. All data is mocked in `src/data/mockData.ts`.
-No backend yet.
+tooling, not something end users touch.
 
 ## Running it
 
+You need the backend running first (see `confirmea-backend/README.md`):
+
 ```bash
+# in confirmea-backend/
 npm install
-npm run dev
+cp .env.example .env
+npm run seed
+npm run dev      # http://localhost:4000
 ```
 
-Then open **http://localhost:5173** in your browser. Log in with anything (e.g.
-`test@test.com` / `password`) — there's no real backend yet, so any credentials work.
+Then, in this project:
+
+```bash
+npm install
+cp .env.example .env
+npm run dev       # http://localhost:5173
+```
+
+Log in with the seeded admin account: **admin@confirmea.app** / **admin123**.
+
+`.env` just points at the backend:
+```
+VITE_API_BASE_URL=http://localhost:4000
+```
+Change that if you ever run the backend somewhere other than `localhost:4000`.
 
 To build a static production bundle instead of running the dev server:
 
@@ -29,43 +46,58 @@ npm run preview   # serves the built dist/ folder locally to sanity-check it
 
 - `/login` is a real route, not something you can scroll past.
 - Everywhere else (`/overview`, `/applications`, `/complaints`, `/businesses`) is
-  wrapped in a `<ProtectedRoute>` component — the same pattern you used for
-  `ProtectedRoute.tsx` on CoachConnect. If there's no session, it redirects to
-  `/login` via React Router's `<Navigate>`, and remembers where you were headed so
-  you land back there after logging in.
-- The session itself is stored in `localStorage` (`confirmea_admin_session`), so it
-  survives a page refresh. Logging out clears it and sends you back to `/login`.
-- This is still client-side only — there's no server verifying the session, so it's a
-  UX-level gate, not real security. That comes with the real backend.
+  wrapped in a `<ProtectedRoute>` component — same pattern as `ProtectedRoute.tsx` on
+  CoachConnect. No session → redirected to `/login` via `<Navigate>`, remembering
+  where you were headed so you land back there after logging in.
+- Logging in calls the real `POST /auth/login`. The JWT and user info come back from
+  the backend and get stored in `localStorage`; every subsequent API call sends the
+  token as `Authorization: Bearer <token>`.
+- The login page also rejects non-admin accounts client-side — if a `customer`-role
+  account somehow tries to log in here, it's turned away, since this panel is
+  admin-only.
+- This is real auth now (the backend actually validates the password and signs the
+  token), not just a UX-level gate like the earlier static-HTML version.
 
 ## What's in here
 
 - **Overview** — stat cards (pending applications, open complaints, active
-  businesses, approved all-time) plus a "needs review" queue and a recent activity
-  feed that logs every approve / reject / resolve / dismiss action in the session.
-- **Applications** — tabbed Pending / Approved / Rejected. Opening one shows a
-  **review checklist** (ABN verified, address verified, contact verified) — approval
-  is disabled until all three are ticked. Rejecting requires a written reason.
-- **Complaints** — tabbed Open / Resolved / Dismissed, filed against the same
-  businesses as the consumer app's mock listings, for continuity. Resolving or
-  dismissing requires a written outcome note.
-- **Businesses** — the live directory, flagging which ones have open complaints.
+  businesses) plus a "needs review" queue and a recent activity feed. The activity
+  feed is still session-only — the backend doesn't have an audit-log endpoint yet, so
+  it resets on refresh; everything else is real.
+- **Applications** — tabbed Pending / Approved / Rejected, pulled from
+  `GET /applications`. Opening one shows the **review checklist** (ABN verified,
+  address verified, contact verified) — each checkbox is a live
+  `PATCH /applications/:id/checklist` call. Approval is disabled until all three are
+  ticked, and the backend enforces that too (rejects with a 400 if you somehow bypass
+  the UI). Rejecting requires a written reason.
+- **Complaints** — tabbed Open / Resolved / Dismissed, from `GET /complaints`.
+  Resolving or dismissing requires a written outcome note and hits
+  `PATCH /complaints/:id/resolve` or `/dismiss`.
+- **Businesses** — from `GET /businesses/admin`, which includes a server-computed
+  open-complaints count per business.
 
 ## Project structure
 
 ```
 src/
-  context/       AuthContext (session), AdminDataContext (applications/complaints/etc.)
+  api/           client.ts — small fetch wrapper, attaches the Bearer token
+  context/       AuthContext (real login/session), AdminDataContext (fetches +
+                 mutates real applications/complaints/businesses)
   components/    ProtectedRoute, Drawer, Pill, EmptyState, Icons
   pages/         LoginPage, AdminLayout (sidebar shell), OverviewPage,
                  ApplicationsPage, ComplaintsPage, BusinessesPage,
                  ApplicationDrawer, ComplaintDrawer
-  data/          mockData.ts — types + seed data
+  utils/         formatDateTime.ts — turns SQLite timestamps into readable local time
+  types.ts       shared types, matching the backend's JSON shapes field-for-field
   theme.css      design tokens (apricot/black brand, shared across both apps)
 ```
 
 ## Next steps
 
-- Swap the mock data + in-memory context for real API calls once there's a backend
-- Replace the `localStorage` session with a real authenticated session/token
-- Add role-based access if there end up being multiple admin permission levels
+- Wire up the mobile app (`confirmea` Expo project) the same way — same backend,
+  same token pattern, just customer-role endpoints (`/listings`, `/bookings`) instead
+  of admin ones.
+- Add a real audit-log endpoint on the backend so the activity feed survives a
+  refresh instead of being session-only.
+- Consider short-lived tokens + a refresh flow before this goes anywhere near
+  production; the current 7-day JWT expiry is fine for a prototype, not for real use.

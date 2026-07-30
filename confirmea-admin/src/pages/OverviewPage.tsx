@@ -3,15 +3,15 @@ import { useAdminData } from "../context/AdminDataContext";
 import EmptyState from "../components/EmptyState";
 import Pill from "../components/Pill";
 import ApplicationDrawer from "./ApplicationDrawer";
+import { formatDateTime } from "../utils/formatDateTime";
 
 export default function OverviewPage() {
-  const { applications, complaints, businesses, activity } = useAdminData();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { applications, complaints, businesses, activity, loading, error } = useAdminData();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const selected = applications.find((a) => a.id === selectedId) ?? null;
 
   const pendingApps = applications.filter((a) => a.status === "pending");
   const openComplaints = complaints.filter((c) => c.status === "open");
-  const approvedAllTime = applications.filter((a) => a.status === "approved").length + businesses.length;
 
   return (
     <>
@@ -20,6 +20,7 @@ export default function OverviewPage() {
         <p>A snapshot of what needs attention today.</p>
       </div>
       <div className="view">
+        {error && <div className="login-error" style={{ marginBottom: 16 }}>{error}</div>}
         <div className="stat-grid">
           <div className="stat-card accent">
             <div className="num">{pendingApps.length}</div>
@@ -34,7 +35,9 @@ export default function OverviewPage() {
             <div className="label">Active businesses</div>
           </div>
           <div className="stat-card">
-            <div className="num">{approvedAllTime}</div>
+            {/* businesses.length already covers every approval, both seeded directly
+                and created via an approved application, so it doubles as "all-time". */}
+            <div className="num">{businesses.length}</div>
             <div className="label">Approved all-time</div>
           </div>
         </div>
@@ -44,7 +47,9 @@ export default function OverviewPage() {
             <div className="panel-head">
               <h3>Needs review</h3>
             </div>
-            {pendingApps.length === 0 ? (
+            {loading ? (
+              <EmptyState message="Loading…" />
+            ) : pendingApps.length === 0 ? (
               <EmptyState message="All caught up — no pending applications." />
             ) : (
               pendingApps.map((a) => (
@@ -57,7 +62,7 @@ export default function OverviewPage() {
                   </div>
                   <div className="row-meta">
                     <Pill status={a.status} />
-                    <div style={{ marginTop: 6 }}>{a.submitted}</div>
+                    <div style={{ marginTop: 6 }}>{formatDateTime(a.submittedAt)}</div>
                   </div>
                 </div>
               ))
@@ -68,15 +73,19 @@ export default function OverviewPage() {
             <div className="panel-head">
               <h3>Recent activity</h3>
             </div>
-            {activity.slice(0, 6).map((entry) => (
-              <div key={entry.id} className="activity-item">
-                <div className={`activity-dot ${entry.type}`} />
-                <div>
-                  <div className="activity-text" dangerouslySetInnerHTML={{ __html: entry.text }} />
-                  <div className="activity-time">{entry.time}</div>
+            {activity.length === 0 ? (
+              <EmptyState message="Nothing done this session yet." />
+            ) : (
+              activity.slice(0, 6).map((entry) => (
+                <div key={entry.id} className="activity-item">
+                  <div className={`activity-dot ${entry.type}`} />
+                  <div>
+                    <div className="activity-text" dangerouslySetInnerHTML={{ __html: entry.text }} />
+                    <div className="activity-time">{entry.time}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

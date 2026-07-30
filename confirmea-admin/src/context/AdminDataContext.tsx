@@ -1,105 +1,124 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
-import {
-  type Application,
-  type Business,
-  type Complaint,
-  type ActivityEntry,
-  initialApplications,
-  initialBusinesses,
-  initialComplaints,
-  initialActivity,
-} from "../data/mockData";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { api } from "../api/client";
+import { useAuth } from "./AuthContext";
+import type { Application, Business, Complaint, ActivityEntry } from "../types";
 
 interface AdminDataContextValue {
   applications: Application[];
   complaints: Complaint[];
   businesses: Business[];
   activity: ActivityEntry[];
-  updateChecklist: (id: string, key: keyof Application["checklist"], value: boolean) => void;
-  approveApplication: (id: string, notes: string) => void;
-  rejectApplication: (id: string, notes: string, reason: string) => void;
-  resolveComplaint: (id: string, notes: string, resolution: string) => void;
-  dismissComplaint: (id: string, notes: string, resolution: string) => void;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+  updateChecklist: (id: number, key: keyof Application["checklist"], value: boolean) => Promise<void>;
+  approveApplication: (id: number, notes: string) => Promise<void>;
+  rejectApplication: (id: number, notes: string, reason: string) => Promise<void>;
+  resolveComplaint: (id: number, notes: string, resolution: string) => Promise<void>;
+  dismissComplaint: (id: number, notes: string, resolution: string) => Promise<void>;
 }
 
 const AdminDataContext = createContext<AdminDataContextValue | undefined>(undefined);
 
 export function AdminDataProvider({ children }: { children: ReactNode }) {
-  const [applications, setApplications] = useState<Application[]>(initialApplications);
-  const [complaints, setComplaints] = useState<Complaint[]>(initialComplaints);
-  const [businesses, setBusinesses] = useState<Business[]>(initialBusinesses);
-  const [activity, setActivity] = useState<ActivityEntry[]>(initialActivity);
+  const { token, isAuthenticated } = useAuth();
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  // Activity is a session-only log of what this admin has done — the backend
+  // doesn't have an audit-log endpoint yet, so this resets on refresh.
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshCount, setRefreshCount] = useState(0);
+
+  const refresh = useCallback(() => setRefreshCount((n) => n + 1), []);
 
   const logActivity = useCallback((type: ActivityEntry["type"], text: string) => {
     setActivity((prev) => [{ id: `a-${Date.now()}`, type, text, time: "just now" }, ...prev]);
   }, []);
 
-  const updateChecklist = useCallback((id: string, key: keyof Application["checklist"], value: boolean) => {
-    setApplications((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, checklist: { ...a.checklist, [key]: value } } : a))
-    );
-  }, []);
+  useEffect(() => {
+    if (!isAuthenticated || !token) {
+      setApplications([]);
+      setComplaints([]);
+      setBusinesses([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    Promise.all([
+      api.get<Application[]>("/applications", token),
+      api.get<Complaint[]>("/complaints", token),
+      api.get<Business[]>("/businesses/admin", token),
+    ])
+      .then(([apps, comps, bizs]) => {
+        if (cancelled) return;
+        setApplications(apps);
+        setComplaints(comps);
+        setBusinesses(bizs);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Failed to load admin data.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, token, refreshCount]);
+
+  const updateChecklist = useCallback(
+    async (id: number, key: keyof Application["checklist"], value: boolean) => {
+      const updated = await api.patch<Application>(`/applications/${id}/checklist`, { key, value }, token);
+      setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)));
+    },
+    [token]
+  );
 
   const approveApplication = useCallback(
-    (id: string, notes: string) => {
-      setApplications((prev) => {
-        const target = prev.find((a) => a.id === id);
-        if (target) {
-          setBusinesses((biz) => [
-            ...biz,
-            {
-              id: `biz-${Date.now()}`,
-              name: target.businessName,
-              category: target.category,
-              address: target.address,
-              approvedDate: "just now",
-            },
-          ]);
-          logActivity("approved", `<b>${target.businessName}</b> application approved`);
-        }
-        return prev.map((a) => (a.id === id ? { ...a, status: "approved", notes } : a));
-      });
+    async (id: number, notes: string) => {
+      const updated = await api.patch<Application>(`/applications/${id}/approve`, { notes }, token);
+      setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)));
+      logActivity("approved", `<b>${updated.businessName}</b> application approved`);
+      refresh(); // the approval created a new business row server-side — pull the fresh list
     },
-    [logActivity]
+    [token, logActivity, refresh]
   );
 
   const rejectApplication = useCallback(
-    (id: string, notes: string, reason: string) => {
-      setApplications((prev) => {
-        const target = prev.find((a) => a.id === id);
-        if (target) {
-          logActivity("rejected", `<b>${target.businessName}</b> application rejected`);
-        }
-        return prev.map((a) => (a.id === id ? { ...a, status: "rejected", notes, decisionReason: reason } : a));
-      });
+    async (id: number, notes: string, reason: string) => {
+      const updated = await api.patch<Application>(`/applications/${id}/reject`, { notes, reason }, token);
+      setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)));
+      logActivity("rejected", `<b>${updated.businessName}</b> application rejected`);
     },
-    [logActivity]
+    [token, logActivity]
   );
 
   const resolveComplaint = useCallback(
-    (id: string, notes: string, resolution: string) => {
-      setComplaints((prev) => {
-        const target = prev.find((c) => c.id === id);
-        if (target) {
-          logActivity("resolved", `Complaint from <b>${target.complainant}</b> about ${target.businessName} resolved`);
-        }
-        return prev.map((c) => (c.id === id ? { ...c, status: "resolved", notes, resolution } : c));
-      });
+    async (id: number, notes: string, resolution: string) => {
+      const updated = await api.patch<Complaint>(`/complaints/${id}/resolve`, { notes, resolution }, token);
+      setComplaints((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      logActivity("resolved", `Complaint from <b>${updated.complainant}</b> about ${updated.businessName} resolved`);
+      refresh(); // open-complaint counts on the Businesses page need to catch up
     },
-    [logActivity]
+    [token, logActivity, refresh]
   );
 
   const dismissComplaint = useCallback(
-    (id: string, notes: string, resolution: string) => {
-      setComplaints((prev) => {
-        const target = prev.find((c) => c.id === id);
-        if (target) {
-          logActivity("dismissed", `Complaint from <b>${target.complainant}</b> about ${target.businessName} dismissed`);
-        }
-        return prev.map((c) => (c.id === id ? { ...c, status: "dismissed", notes, resolution } : c));
-      });
+    async (id: number, notes: string, resolution: string) => {
+      const updated = await api.patch<Complaint>(`/complaints/${id}/dismiss`, { notes, resolution }, token);
+      setComplaints((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      logActivity("dismissed", `Complaint from <b>${updated.complainant}</b> about ${updated.businessName} dismissed`);
+      refresh();
     },
-    [logActivity]
+    [token, logActivity, refresh]
   );
 
   return (
@@ -109,6 +128,9 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
         complaints,
         businesses,
         activity,
+        loading,
+        error,
+        refresh,
         updateChecklist,
         approveApplication,
         rejectApplication,

@@ -2,7 +2,9 @@ import { useState } from "react";
 import Drawer from "../components/Drawer";
 import { useAdminData } from "../context/AdminDataContext";
 import { CheckIcon } from "../components/Icons";
-import type { Complaint } from "../data/mockData";
+import { formatDateTime } from "../utils/formatDateTime";
+import { ApiError } from "../api/client";
+import type { Complaint } from "../types";
 
 interface Props {
   complaint: Complaint;
@@ -14,28 +16,44 @@ export default function ComplaintDrawer({ complaint, onClose }: Props) {
   const [notes, setNotes] = useState(complaint.notes);
   const [resolution, setResolution] = useState("");
   const [resolutionError, setResolutionError] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const isOpen = complaint.status === "open";
 
-  function handleAction(action: "resolve" | "dismiss") {
+  async function handleAction(action: "resolve" | "dismiss") {
     if (!resolution.trim()) {
       setResolutionError(true);
       return;
     }
-    if (action === "resolve") {
-      resolveComplaint(complaint.id, notes, resolution.trim());
-    } else {
-      dismissComplaint(complaint.id, notes, resolution.trim());
+    setActionError(null);
+    setSubmitting(true);
+    try {
+      if (action === "resolve") {
+        await resolveComplaint(complaint.id, notes, resolution.trim());
+      } else {
+        await dismissComplaint(complaint.id, notes, resolution.trim());
+      }
+      onClose();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Couldn't update this complaint.");
+    } finally {
+      setSubmitting(false);
     }
-    onClose();
   }
 
   return (
     <Drawer onClose={onClose}>
       <h2>{complaint.businessName}</h2>
       <div className="sub">
-        {complaint.category} · reported by {complaint.complainant} · {complaint.submitted}
+        {complaint.category} · reported by {complaint.complainant} · {formatDateTime(complaint.submittedAt)}
       </div>
+
+      {actionError && (
+        <div className="login-error" style={{ marginBottom: 16 }}>
+          {actionError}
+        </div>
+      )}
 
       {!isOpen && (
         <div className={`resolved-banner ${complaint.status}`}>
@@ -86,11 +104,11 @@ export default function ComplaintDrawer({ complaint, onClose }: Props) {
             />
           </div>
           <div className="action-row">
-            <button className="btn btn-outline" onClick={() => handleAction("dismiss")}>
+            <button className="btn btn-outline" onClick={() => handleAction("dismiss")} disabled={submitting}>
               Dismiss
             </button>
-            <button className="btn btn-neutral" onClick={() => handleAction("resolve")}>
-              Mark resolved
+            <button className="btn btn-neutral" onClick={() => handleAction("resolve")} disabled={submitting}>
+              {submitting ? "Working…" : "Mark resolved"}
             </button>
           </div>
         </>

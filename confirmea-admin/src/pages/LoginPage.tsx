@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { ApiError } from "../api/client";
 import { LogoIcon } from "../components/Icons";
 
 export default function LoginPage() {
@@ -9,19 +10,28 @@ export default function LoginPage() {
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const from = (location.state as { from?: Location })?.from?.pathname ?? "/overview";
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
-      setError(true);
+      setError("Enter an email and password to continue.");
       return;
     }
-    setError(false);
-    login(email);
-    navigate(from, { replace: true });
+
+    setError(null);
+    setSubmitting(true);
+    try {
+      await login(email, password);
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong logging in.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -34,7 +44,7 @@ export default function LoginPage() {
         <p className="login-sub">
           Review business applications, manage complaints, and keep the marketplace trustworthy.
         </p>
-        {error && <div className="login-error">Enter an email and password to continue.</div>}
+        {error && <div className="login-error">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="field">
             <label htmlFor="login-email">Admin email</label>
@@ -45,6 +55,7 @@ export default function LoginPage() {
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={submitting}
             />
           </div>
           <div className="field">
@@ -56,15 +67,17 @@ export default function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={submitting}
             />
           </div>
-          <button type="submit" className="login-btn">
-            Log in
+          <button type="submit" className="login-btn" disabled={submitting}>
+            {submitting ? "Logging in…" : "Log in"}
           </button>
         </form>
         <p className="login-note">
-          Prototype build — any email &amp; password logs you in. This panel is separate from the
-          customer-facing Confirmea app and will get real authentication before launch.
+          Seeded admin login: <strong>admin@confirmea.app</strong> / <strong>admin123</strong> (from the
+          backend's <code>npm run seed</code>). This panel is separate from the customer-facing Confirmea
+          app.
         </p>
       </div>
     </div>

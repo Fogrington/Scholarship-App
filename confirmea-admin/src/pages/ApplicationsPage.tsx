@@ -3,14 +3,15 @@ import { useAdminData } from "../context/AdminDataContext";
 import EmptyState from "../components/EmptyState";
 import Pill from "../components/Pill";
 import ApplicationDrawer from "./ApplicationDrawer";
-import type { ApplicationStatus } from "../data/mockData";
+import { formatDateTime } from "../utils/formatDateTime";
+import type { ApplicationStatus } from "../types";
 
 const TABS: ApplicationStatus[] = ["pending", "approved", "rejected"];
 
 export default function ApplicationsPage() {
-  const { applications } = useAdminData();
+  const { applications, loading, error } = useAdminData();
   const [tab, setTab] = useState<ApplicationStatus>("pending");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const selected = applications.find((a) => a.id === selectedId) ?? null;
 
   const filtered = applications.filter((a) => a.status === tab);
@@ -22,6 +23,7 @@ export default function ApplicationsPage() {
         <p>Review new business sign-ups before they go live in the app.</p>
       </div>
       <div className="view">
+        {error && <div className="login-error" style={{ marginBottom: 16 }}>{error}</div>}
         <div className="panel">
           <div className="panel-head">
             <h3>Applications</h3>
@@ -38,7 +40,9 @@ export default function ApplicationsPage() {
             </div>
           </div>
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <EmptyState message="Loading applications…" />
+          ) : filtered.length === 0 ? (
             <EmptyState message={`No ${tab} applications right now.`} />
           ) : (
             filtered.map((a) => (
@@ -51,7 +55,7 @@ export default function ApplicationsPage() {
                 </div>
                 <div className="row-meta">
                   <Pill status={a.status} />
-                  <div style={{ marginTop: 6 }}>{a.submitted}</div>
+                  <div style={{ marginTop: 6 }}>{formatDateTime(a.submittedAt)}</div>
                 </div>
               </div>
             ))

@@ -3,14 +3,15 @@ import { useAdminData } from "../context/AdminDataContext";
 import EmptyState from "../components/EmptyState";
 import Pill from "../components/Pill";
 import ComplaintDrawer from "./ComplaintDrawer";
-import type { ComplaintStatus } from "../data/mockData";
+import { formatDateTime } from "../utils/formatDateTime";
+import type { ComplaintStatus } from "../types";
 
 const TABS: ComplaintStatus[] = ["open", "resolved", "dismissed"];
 
 export default function ComplaintsPage() {
-  const { complaints } = useAdminData();
+  const { complaints, loading, error } = useAdminData();
   const [tab, setTab] = useState<ComplaintStatus>("open");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const selected = complaints.find((c) => c.id === selectedId) ?? null;
 
   const filtered = complaints.filter((c) => c.status === tab);
@@ -22,6 +23,7 @@ export default function ComplaintsPage() {
         <p>Track and resolve issues customers raise about a business.</p>
       </div>
       <div className="view">
+        {error && <div className="login-error" style={{ marginBottom: 16 }}>{error}</div>}
         <div className="panel">
           <div className="panel-head">
             <h3>Complaints</h3>
@@ -38,7 +40,9 @@ export default function ComplaintsPage() {
             </div>
           </div>
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <EmptyState message="Loading complaints…" />
+          ) : filtered.length === 0 ? (
             <EmptyState message={`No ${tab} complaints.`} />
           ) : (
             filtered.map((c) => (
@@ -51,7 +55,7 @@ export default function ComplaintsPage() {
                 </div>
                 <div className="row-meta">
                   <Pill status={c.status} />
-                  <div style={{ marginTop: 6 }}>{c.submitted}</div>
+                  <div style={{ marginTop: 6 }}>{formatDateTime(c.submittedAt)}</div>
                 </div>
               </div>
             ))
