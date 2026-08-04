@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
-import { mockListings } from "../data/mockData";
 import Badge from "../components/Badge";
 import { useBookings } from "../context/BookingsContext";
+import { ApiError } from "../api/client";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { ClientStackParamList, ClientTabParamList } from "../navigation/RootNavigator";
@@ -12,18 +12,11 @@ import type { ClientStackParamList, ClientTabParamList } from "../navigation/Roo
 type Props = NativeStackScreenProps<ClientStackParamList, "ListingDetail">;
 
 export default function ListingDetailScreen({ route, navigation }: Props) {
-  const { listingId } = route.params;
-  const listing = mockListings.find((l) => l.id === listingId);
+  const { listing } = route.params;
   const { addBooking, isBooked } = useBookings();
   const [confirmed, setConfirmed] = useState(false);
-
-  if (!listing) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <Text style={typography.body}>Listing not found.</Text>
-      </SafeAreaView>
-    );
-  }
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const alreadyBooked = confirmed || isBooked(listing.id);
 
@@ -31,22 +24,30 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
     ? Math.round(listing.price * (1 - listing.discountPercent / 100))
     : listing.price;
 
-  const handleConfirm = () => {
-    addBooking(listing);
-    setConfirmed(true);
-    Alert.alert(
-      "Slot reserved!",
-      `${listing.service} at ${listing.businessName} is booked for ${listing.slotTime}. Pay ${listing.businessName} directly when you arrive.`,
-      [
-        {
-          text: "View my bookings",
-          onPress: () =>
-            navigation
-              .getParent<BottomTabNavigationProp<ClientTabParamList>>()
-              ?.navigate("BookingsTab"),
-        },
-      ]
-    );
+  const handleConfirm = async () => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await addBooking(listing);
+      setConfirmed(true);
+      Alert.alert(
+        "Slot reserved!",
+        `${listing.service} at ${listing.businessName} is booked for ${listing.slotTime}. Pay ${listing.businessName} directly when you arrive.`,
+        [
+          {
+            text: "View my bookings",
+            onPress: () =>
+              navigation
+                .getParent<BottomTabNavigationProp<ClientTabParamList>>()
+                ?.navigate("BookingsTab"),
+          },
+        ]
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't reserve this slot. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -73,7 +74,9 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.metaCard}>
           <MetaRow icon="location-outline" label={listing.address} />
-          <MetaRow icon="navigate-outline" label={`${listing.distanceKm} km away`} />
+          {listing.distanceKm != null && (
+            <MetaRow icon="navigate-outline" label={`${listing.distanceKm} km away`} />
+          )}
           <MetaRow icon="time-outline" label={`Slot: ${listing.slotTime}`} />
           <MetaRow icon="star" label={`${listing.rating} (${listing.reviews} reviews)`} />
         </View>
@@ -91,6 +94,13 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
           <Badge text="Pay at the business" tone="success" />
         </View>
 
+        {error && (
+          <View style={styles.errorCard}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
         <View style={styles.noticeCard}>
           <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
           <Text style={styles.noticeText}>
@@ -104,10 +114,10 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
         <Pressable
           style={[styles.confirmBtn, alreadyBooked && styles.confirmBtnDone]}
           onPress={handleConfirm}
-          disabled={alreadyBooked}
+          disabled={alreadyBooked || submitting}
         >
           <Text style={styles.confirmText}>
-            {alreadyBooked ? "Slot reserved" : `Reserve slot · $${discounted}`}
+            {alreadyBooked ? "Slot reserved" : submitting ? "Reserving…" : `Reserve slot · $${discounted}`}
           </Text>
         </Pressable>
       </View>
@@ -174,6 +184,15 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   price: { fontSize: 22, fontWeight: "800", color: colors.black },
+  errorCard: {
+    flexDirection: "row",
+    backgroundColor: "#FBEAE6",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: "flex-start",
+    marginBottom: spacing.md,
+  },
+  errorText: { ...typography.caption, marginLeft: spacing.sm, flex: 1, color: colors.warning },
   noticeCard: {
     flexDirection: "row",
     backgroundColor: "#FCEEE6",

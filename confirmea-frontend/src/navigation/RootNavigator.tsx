@@ -1,10 +1,12 @@
 import React from "react";
+import { View, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../theme/theme";
 import { useAuth } from "../context/AuthContext";
+import type { Listing } from "../types";
 
 import LoginScreen from "../screens/LoginScreen";
 import HomeScreen from "../screens/HomeScreen";
@@ -14,7 +16,7 @@ import ProfileScreen from "../screens/ProfileScreen";
 
 export type ClientStackParamList = {
   Home: undefined;
-  ListingDetail: { listingId: string };
+  ListingDetail: { listing: Listing };
 };
 
 export type ClientTabParamList = {
@@ -74,7 +76,17 @@ function ClientTabs() {
 }
 
 export default function RootNavigator() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, initializing } = useAuth();
+
+  if (initializing) {
+    // Checking AsyncStorage for a saved session — avoids a flash of the login
+    // screen before we know whether the user is already logged in.
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.black }}>
+        <ActivityIndicator color={colors.apricot} size="large" />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>

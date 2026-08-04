@@ -8,11 +8,14 @@ import type { ListingRow } from "../types.js";
 
 const router = Router();
 
-function serialize(row: ListingRow & { business_name?: string }) {
+type ListingJoinRow = ListingRow & { business_name: string; business_address: string };
+
+function serialize(row: ListingJoinRow) {
   return {
     id: row.id,
     businessId: row.business_id,
     businessName: row.business_name,
+    address: row.business_address,
     service: row.service,
     category: row.category,
     price: row.price,
@@ -32,7 +35,7 @@ router.get(
     const { category, search } = req.query as { category?: string; search?: string };
 
     let query = `
-      SELECT l.*, b.name AS business_name
+      SELECT l.*, b.name AS business_name, b.address AS business_address
       FROM listings l
       JOIN businesses b ON b.id = l.business_id
       WHERE l.is_active = 1
@@ -49,7 +52,7 @@ router.get(
     }
     query += " ORDER BY l.created_at DESC";
 
-    const rows = db.prepare(query).all(...params) as (ListingRow & { business_name: string })[];
+    const rows = db.prepare(query).all(...params) as ListingJoinRow[];
     res.json(rows.map(serialize));
   })
 );
@@ -59,11 +62,11 @@ router.get(
   asyncHandler(async (req, res) => {
     const row = db
       .prepare(
-        `SELECT l.*, b.name AS business_name FROM listings l
+        `SELECT l.*, b.name AS business_name, b.address AS business_address FROM listings l
          JOIN businesses b ON b.id = l.business_id
          WHERE l.id = ?`
       )
-      .get(req.params.id) as (ListingRow & { business_name: string }) | undefined;
+      .get(req.params.id) as ListingJoinRow | undefined;
     if (!row) throw new ApiError(404, "Listing not found.");
     res.json(serialize(row));
   })
@@ -103,11 +106,11 @@ router.post(
 
     const row = db
       .prepare(
-        `SELECT l.*, b.name AS business_name FROM listings l
+        `SELECT l.*, b.name AS business_name, b.address AS business_address FROM listings l
          JOIN businesses b ON b.id = l.business_id
          WHERE l.id = ?`
       )
-      .get(result.lastInsertRowid) as ListingRow & { business_name: string };
+      .get(result.lastInsertRowid) as ListingJoinRow;
     res.status(201).json(serialize(row));
   })
 );

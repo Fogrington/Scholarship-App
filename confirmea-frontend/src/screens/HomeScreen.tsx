@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,10 +6,12 @@ import {
   StyleSheet,
   SafeAreaView,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius } from "../theme/theme";
-import { categories, mockListings, Category } from "../data/mockData";
+import { categories, type Category, type Listing } from "../types";
+import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import CategoryPill from "../components/CategoryPill";
 import ServiceCard from "../components/ServiceCard";
@@ -22,9 +24,34 @@ export default function HomeScreen({ navigation }: Props) {
   const { displayName } = useAuth();
   const [activeCategory, setActiveCategory] = useState<Category | "All">("All");
   const [search, setSearch] = useState("");
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    api
+      .get<Listing[]>("/listings")
+      .then((data) => {
+        if (!cancelled) setListings(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load nearby slots.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
-    return mockListings.filter((l) => {
+    return listings.filter((l) => {
       const matchesCategory = activeCategory === "All" || l.category === activeCategory;
       const matchesSearch =
         search.trim().length === 0 ||
@@ -32,7 +59,7 @@ export default function HomeScreen({ navigation }: Props) {
         l.service.toLowerCase().includes(search.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, search]);
+  }, [listings, activeCategory, search]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -80,27 +107,40 @@ export default function HomeScreen({ navigation }: Props) {
         }}
       />
 
-      <Text style={styles.sectionTitle}>
-        {filtered.length} slot{filtered.length === 1 ? "" : "s"} open nearby
-      </Text>
+      {error ? (
+        <View style={styles.empty}>
+          <Ionicons name="cloud-offline-outline" size={28} color={colors.textMuted} />
+          <Text style={styles.emptyText}>{error}</Text>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.sectionTitle}>
+            {loading ? "Loading slots…" : `${filtered.length} slot${filtered.length === 1 ? "" : "s"} open nearby`}
+          </Text>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => (
-          <ServiceCard
-            listing={item}
-            onPress={() => navigation.navigate("ListingDetail", { listingId: item.id })}
-          />
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
-            <Text style={styles.emptyText}>No open slots match that search yet.</Text>
-          </View>
-        }
-      />
+          {loading ? (
+            <ActivityIndicator color={colors.apricotDark} style={{ marginTop: spacing.xl }} />
+          ) : (
+            <FlatList
+              data={filtered}
+              keyExtractor={(item) => String(item.id)}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <ServiceCard
+                  listing={item}
+                  onPress={() => navigation.navigate("ListingDetail", { listing: item })}
+                />
+              )}
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
+                  <Text style={styles.emptyText}>No open slots match that search yet.</Text>
+                </View>
+              }
+            />
+          )}
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -146,6 +186,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   listContent: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
-  empty: { alignItems: "center", marginTop: spacing.xl, opacity: 0.6 },
-  emptyText: { ...typography.body, marginTop: spacing.sm },
+  empty: { alignItems: "center", marginTop: spacing.xl, opacity: 0.6, paddingHorizontal: spacing.lg },
+  emptyText: { ...typography.body, marginTop: spacing.sm, textAlign: "center" },
 });

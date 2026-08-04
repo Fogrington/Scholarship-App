@@ -1,60 +1,90 @@
 # Confirmea (prototype)
 
-Frontend-only prototype for the "Confirm Me" / Confirmea app — a last-minute booking
-marketplace for hair, beauty, nails, waxing, and massage appointments. Built for the
-Winter Scholarship project with Julia.
+The "Confirm Me" / Confirmea app — a last-minute booking marketplace for hair, beauty,
+nails, waxing, and massage appointments. Built for the Winter Scholarship project with
+Julia.
 
-This is UI only — all data is mocked in `src/data/mockData.ts`. No backend and no real
-geolocation yet. **This build is scoped to the average client user only.** Business and
-admin tooling (registration approvals, business dashboards) is intentionally left out —
-per Julia's steer, that will live in its own dedicated system, most likely a web-based
-admin panel, not this mobile app.
+Now wired to the real `confirmea-backend` API instead of in-memory mock data — a
+business approved in the admin panel actually shows up bookable here.
+
+**This build is scoped to the average client user only.** Business and admin tooling
+lives in the separate `confirmea-admin-app` web panel, not this mobile app.
+
+## Running it
+
+You need the backend running first (see `confirmea-backend/README.md`):
+
+```bash
+# in confirmea-backend/
+npm install
+cp .env.example .env
+npm run seed
+npm run dev      # http://localhost:4000
+```
+
+Then, **before running this app**, open `src/api/config.ts` and set `LAN_IP` to your
+computer's actual network IP — Expo Go on your phone can't reach your computer via
+`localhost`, since that means "the phone itself" from the phone's point of view.
+
+```bash
+# Mac:     ipconfig getifaddr en0
+# Windows: ipconfig   (look for "IPv4 Address" under your Wi-Fi adapter)
+```
+
+Your phone and computer need to be on the same Wi-Fi network. Full details, including
+the iOS Simulator / Android Emulator exceptions, are in the comments at the top of
+`src/api/config.ts`.
+
+Then:
+
+```bash
+npm install
+npx expo start
+```
+
+Scan the QR code with Expo Go, same as before. Log in with the seeded customer
+account — **fletch@example.com** / **password123** — or tap "New to Confirmea? Sign up"
+to create a fresh account (it hits the real `/auth/register` endpoint).
 
 ## What's in here
 
-- **Login screen**: sits in front of the app — no real backend auth yet, any
-  email/password combination logs you in for demo purposes. Business/admin accounts
-  won't authenticate here at all once that system exists.
-- **Client app** (bottom tabs): Discover (browse + filter open slots by category,
-  search), Bookings (live — updates as soon as you reserve a slot), Profile
-- **Booking flow**: tap a slot -> detail screen -> reserve. Payment happens **in person**
-  at the business, not through the app — the app just advertises the price so people
-  know what to expect and shows a "pay at the business" badge instead of implying an
-  online transaction.
-- Reserving a slot on the detail screen now updates the Bookings tab immediately via
-  shared app state (`src/context/BookingsContext.tsx`) — this was broken in the first
-  pass and is fixed.
-- Dropped the "in X minutes/hours" countdown on listings, since it wasn't backed by a
-  real clock or timezone. Slot times are shown as-is (e.g. "Today, 4:30 PM"); once
-  there's a real backend this can come back properly localised to Australian Eastern
-  time.
+- **Login screen**: real login/signup against the backend now, not a mock. Session
+  persists across app restarts via `AsyncStorage`, so you don't have to log in every
+  time. Rejects admin accounts client-side — those belong in the admin panel.
+- **Discover tab**: fetches real listings from `GET /listings`, with loading and error
+  states. Category filter and search still work the same as before, just filtering
+  real data now instead of six hardcoded entries.
+- **Booking flow**: tap a slot → detail screen → reserve. This now calls
+  `POST /bookings` for real — the reservation is a row in the backend's SQLite
+  database, not local state that resets on refresh. Payment still happens **in
+  person** at the business; the app just advertises the price.
+- **Bookings tab**: fetches `GET /bookings/mine`, so it reflects whatever's actually
+  in the database for your account, including from previous sessions.
 
 Color scheme is apricot (#F2A65A) and black (#1A1A1A) on a warm cream background, per
-Julia's whimsical/friendly styling preference.
+Julia's whimsical/friendly styling preference — unchanged.
 
-## Running it on your phone with Expo Go
+## Project structure
 
-1. Install [Node.js](https://nodejs.org/) (LTS) if you don't have it.
-2. Install [Expo Go](https://expo.dev/go) on your phone (App Store / Google Play).
-3. In this folder, run:
+```
+src/
+  api/           config.ts (backend URL — edit this), client.ts (fetch wrapper)
+  context/       AuthContext (real login/session via AsyncStorage), BookingsContext
+                 (fetches + posts real bookings)
+  screens/       LoginScreen, HomeScreen, ListingDetailScreen, BookingsScreen,
+                 ProfileScreen
+  navigation/    RootNavigator — shows a loading spinner while checking for a saved
+                 session, then gates Login vs the main tabs
+  types.ts       shared types, matching the backend's JSON shapes field-for-field
+  theme/         design tokens (apricot/black brand, shared with the admin panel)
+```
 
-   ```bash
-   npm install
-   npx expo start
-   ```
+## Next steps
 
-4. Scan the QR code that appears with your phone's camera (iOS) or the Expo Go app
-   (Android). Make sure your phone and computer are on the same Wi-Fi network.
-5. Log in with anything (e.g. `test@test.com` / `password`) to reach the dashboard.
-
-## Next steps (from the meeting notes)
-
-- Swap mock listings for real geolocation-based data
-- Build the actual authentication backend for the client login screen
-- Design the separate business/admin web portal (registration intake with ABN +
-  address verification, approvals queue, business dashboard for filling slots)
-- Investigate integration with existing salon booking software
-- Look into optional deposit/no-show fee handling if the in-person payment model ever
-  needs a backstop
-- If real-time slot timing comes back, make sure it's genuinely computed from a live
-  clock in AEST rather than static mock data
+- Real geolocation instead of the seeded `distanceKm` values
+- A proper business registration flow that feeds into the admin panel's applications
+  queue (right now businesses only get created via an approved application, seeded or
+  entered manually)
+- Push notifications for booking confirmations/reminders
+- Consider a refresh token flow before this goes near production — same caveat as the
+  admin panel's 7-day JWT

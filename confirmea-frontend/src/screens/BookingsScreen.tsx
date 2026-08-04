@@ -1,58 +1,68 @@
 import React from "react";
-import { View, Text, FlatList, StyleSheet, SafeAreaView } from "react-native";
+import { View, Text, FlatList, StyleSheet, SafeAreaView, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useBookings } from "../context/BookingsContext";
 import Badge from "../components/Badge";
 
 export default function BookingsScreen() {
-  const { bookings } = useBookings();
+  const { bookings, loading, error } = useBookings();
 
   return (
     <SafeAreaView style={styles.safe}>
       <Text style={[typography.heading, styles.title]}>My Bookings</Text>
 
-      <FlatList
-        data={bookings}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => {
-          const discounted = item.listing.discountPercent
-            ? Math.round(item.listing.price * (1 - item.listing.discountPercent / 100))
-            : item.listing.price;
+      {error ? (
+        <View style={styles.empty}>
+          <Ionicons name="cloud-offline-outline" size={28} color={colors.textMuted} />
+          <Text style={styles.emptyText}>{error}</Text>
+        </View>
+      ) : loading ? (
+        <ActivityIndicator color={colors.apricotDark} style={{ marginTop: spacing.xl }} />
+      ) : (
+        <FlatList
+          data={bookings}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => {
+            if (!item.listing) return null;
+            const discounted = item.listing.discountPercent
+              ? Math.round(item.listing.price * (1 - item.listing.discountPercent / 100))
+              : item.listing.price;
 
-          return (
-            <View style={styles.card}>
-              <View style={styles.rowBetween}>
-                <Text style={typography.subheading}>{item.listing.businessName}</Text>
-                <Badge
-                  text={item.status}
-                  tone={item.status === "Upcoming" ? "apricot" : "success"}
-                />
+            return (
+              <View style={styles.card}>
+                <View style={styles.rowBetween}>
+                  <Text style={typography.subheading}>{item.listing.businessName}</Text>
+                  <Badge
+                    text={item.status}
+                    tone={item.status === "Upcoming" ? "apricot" : "success"}
+                  />
+                </View>
+                <Text style={styles.service}>{item.listing.service}</Text>
+                <View style={styles.metaRow}>
+                  <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.metaText}>{item.listing.slotTime}</Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Ionicons name="location-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.metaText}>{item.listing.address}</Text>
+                </View>
+                <View style={styles.payRow}>
+                  <Text style={styles.payLabel}>Pay in person</Text>
+                  <Text style={styles.payAmount}>${discounted}</Text>
+                </View>
               </View>
-              <Text style={styles.service}>{item.listing.service}</Text>
-              <View style={styles.metaRow}>
-                <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-                <Text style={styles.metaText}>{item.listing.slotTime}</Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Ionicons name="location-outline" size={14} color={colors.textMuted} />
-                <Text style={styles.metaText}>{item.listing.address}</Text>
-              </View>
-              <View style={styles.payRow}>
-                <Text style={styles.payLabel}>Pay in person</Text>
-                <Text style={styles.payAmount}>${discounted}</Text>
-              </View>
+            );
+          }}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
+              <Text style={styles.emptyText}>No bookings yet — go grab a last-minute slot!</Text>
             </View>
-          );
-        }}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
-            <Text style={styles.emptyText}>No bookings yet — go grab a last-minute slot!</Text>
-          </View>
-        }
-      />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -83,6 +93,6 @@ const styles = StyleSheet.create({
   },
   payLabel: { ...typography.caption },
   payAmount: { fontSize: 16, fontWeight: "800", color: colors.black },
-  empty: { alignItems: "center", marginTop: spacing.xl, opacity: 0.6 },
+  empty: { alignItems: "center", marginTop: spacing.xl, opacity: 0.6, paddingHorizontal: spacing.lg },
   emptyText: { ...typography.body, marginTop: spacing.sm, textAlign: "center" },
 });

@@ -13,18 +13,37 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useAuth } from "../context/AuthContext";
+import { ApiError } from "../api/client";
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = email.trim().length > 0 && password.trim().length > 0;
+  const canSubmit =
+    email.trim().length > 0 &&
+    password.trim().length > 0 &&
+    (mode === "login" || name.trim().length > 0);
 
-  const handleSubmit = () => {
-    // Prototype only — no real auth backend yet, any credentials work.
-    login(email);
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (mode === "login") {
+        await login(email.trim(), password);
+      } else {
+        await register(email.trim(), password, name.trim());
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -44,6 +63,28 @@ export default function LoginScreen() {
             <Text style={styles.cardTitle}>
               {mode === "login" ? "Log in" : "Create your account"}
             </Text>
+
+            {error && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            {mode === "signup" && (
+              <>
+                <Text style={styles.label}>Name</Text>
+                <View style={styles.inputRow}>
+                  <Ionicons name="person-outline" size={18} color={colors.textMuted} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Your name"
+                    placeholderTextColor={colors.textMuted}
+                    value={name}
+                    onChangeText={setName}
+                  />
+                </View>
+              </>
+            )}
 
             <Text style={styles.label}>Email</Text>
             <View style={styles.inputRow}>
@@ -73,18 +114,21 @@ export default function LoginScreen() {
             </View>
 
             <Pressable
-              style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
+              style={[styles.submitBtn, (!canSubmit || submitting) && styles.submitBtnDisabled]}
               onPress={handleSubmit}
-              disabled={!canSubmit}
+              disabled={!canSubmit || submitting}
             >
               <Text style={styles.submitText}>
-                {mode === "login" ? "Log in" : "Sign up"}
+                {submitting ? "Working…" : mode === "login" ? "Log in" : "Sign up"}
               </Text>
             </Pressable>
 
             <Pressable
               style={styles.switchModeBtn}
-              onPress={() => setMode(mode === "login" ? "signup" : "login")}
+              onPress={() => {
+                setMode(mode === "login" ? "signup" : "login");
+                setError(null);
+              }}
             >
               <Text style={styles.switchModeText}>
                 {mode === "login"
@@ -95,8 +139,7 @@ export default function LoginScreen() {
           </View>
 
           <Text style={styles.prototypeNote}>
-            Prototype build — any email & password will log you in. Business and admin
-            accounts will live in a separate web portal, not this app.
+            Business and admin accounts live in a separate web portal, not this app.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -138,6 +181,13 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   cardTitle: { ...typography.heading, fontSize: 20, marginBottom: spacing.md },
+  errorBox: {
+    backgroundColor: "#FBEAE6",
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  errorText: { color: colors.warning, fontSize: 12.5, fontWeight: "600" },
   label: { ...typography.caption, marginBottom: 6, marginTop: spacing.sm },
   inputRow: {
     flexDirection: "row",

@@ -8,6 +8,8 @@ import type { BookingRow, ListingRow } from "../types.js";
 
 const router = Router();
 
+type ListingJoinRow = ListingRow & { business_name: string; business_address: string };
+
 function serialize(row: BookingRow & { listing?: unknown }) {
   return {
     id: row.id,
@@ -19,11 +21,12 @@ function serialize(row: BookingRow & { listing?: unknown }) {
   };
 }
 
-function listingSummary(row: ListingRow & { business_name: string }) {
+function listingSummary(row: ListingJoinRow) {
   return {
     id: row.id,
     businessId: row.business_id,
     businessName: row.business_name,
+    address: row.business_address,
     service: row.service,
     category: row.category,
     price: row.price,
@@ -44,11 +47,11 @@ router.post(
 
     const listing = db
       .prepare(
-        `SELECT l.*, b.name AS business_name FROM listings l
+        `SELECT l.*, b.name AS business_name, b.address AS business_address FROM listings l
          JOIN businesses b ON b.id = l.business_id
          WHERE l.id = ? AND l.is_active = 1`
       )
-      .get(listingId) as (ListingRow & { business_name: string }) | undefined;
+      .get(listingId) as ListingJoinRow | undefined;
     if (!listing) throw new ApiError(404, "That slot isn't available.");
 
     const result = db
@@ -73,11 +76,11 @@ router.get(
     const withListings = rows.map((booking) => {
       const listing = db
         .prepare(
-          `SELECT l.*, b.name AS business_name FROM listings l
+          `SELECT l.*, b.name AS business_name, b.address AS business_address FROM listings l
            JOIN businesses b ON b.id = l.business_id
            WHERE l.id = ?`
         )
-        .get(booking.listing_id) as (ListingRow & { business_name: string }) | undefined;
+        .get(booking.listing_id) as ListingJoinRow | undefined;
       return serialize({ ...booking, listing: listing ? listingSummary(listing) : null });
     });
 

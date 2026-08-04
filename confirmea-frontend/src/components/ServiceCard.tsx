@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, shadow, typography } from "../theme/theme";
-import { Listing } from "../data/mockData";
+import { Listing } from "../types";
 
 type Props = {
   listing: Listing;

@@ -1,45 +1,70 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
-import { Listing, mockListings } from "../data/mockData";
-
-export type BookingStatus = "Upcoming" | "Completed" | "Cancelled";
-
-export type Booking = {
-  id: string;
-  listing: Listing;
-  status: BookingStatus;
-};
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { api } from "../api/client";
+import { useAuth } from "./AuthContext";
+import type { Booking, Listing } from "../types";
 
 type BookingsContextValue = {
   bookings: Booking[];
-  addBooking: (listing: Listing) => void;
-  isBooked: (listingId: string) => boolean;
+  loading: boolean;
+  error: string | null;
+  addBooking: (listing: Listing) => Promise<void>;
+  isBooked: (listingId: number) => boolean;
+  refresh: () => void;
 };
 
 const BookingsContext = createContext<BookingsContextValue | undefined>(undefined);
 
-// Seed with one existing booking so the tab isn't empty on first open.
-const initialBookings: Booking[] = [
-  { id: "b1", listing: mockListings[0], status: "Upcoming" },
-];
-
 export function BookingsProvider({ children }: { children: React.ReactNode }) {
-  const [bookings, setBookings] = useState<Booking[]>(initialBookings);
+  const { token, isLoggedIn } = useAuth();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshCount, setRefreshCount] = useState(0);
 
-  const addBooking = useCallback((listing: Listing) => {
-    setBookings((prev) => [
-      { id: `b-${Date.now()}`, listing, status: "Upcoming" },
-      ...prev,
-    ]);
-  }, []);
+  const refresh = useCallback(() => setRefreshCount((n) => n + 1), []);
+
+  useEffect(() => {
+    if (!isLoggedIn || !token) {
+      setBookings([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    api
+      .get<Booking[]>("/bookings/mine", token)
+      .then((data) => {
+        if (!cancelled) setBookings(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load your bookings.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, token, refreshCount]);
+
+  const addBooking = useCallback(
+    async (listing: Listing) => {
+      const newBooking = await api.post<Booking>("/bookings", { listingId: listing.id }, token);
+      setBookings((prev) => [newBooking, ...prev]);
+    },
+    [token]
+  );
 
   const isBooked = useCallback(
-    (listingId: string) =>
-      bookings.some((b) => b.listing.id === listingId && b.status === "Upcoming"),
+    (listingId: number) => bookings.some((b) => b.listingId === listingId && b.status === "Upcoming"),
     [bookings]
   );
 
   return (
-    <BookingsContext.Provider value={{ bookings, addBooking, isBooked }}>
+    <BookingsContext.Provider value={{ bookings, loading, error, addBooking, isBooked, refresh }}>
       {children}
     </BookingsContext.Provider>
   );
