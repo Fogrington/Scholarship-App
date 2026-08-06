@@ -6,7 +6,9 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('customer', 'admin')) DEFAULT 'customer',
+  role TEXT NOT NULL CHECK (role IN ('customer', 'admin', 'business')) DEFAULT 'customer',
+  -- Only set when role = 'business': which business this login manages.
+  business_id INTEGER REFERENCES businesses(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -49,6 +51,8 @@ CREATE TABLE IF NOT EXISTS listings (
   price REAL NOT NULL,
   discount_percent INTEGER,
   slot_time TEXT NOT NULL,
+  -- How many customers can accept this slot before it stops showing up publicly.
+  capacity INTEGER NOT NULL DEFAULT 1 CHECK (capacity >= 1),
   rating REAL NOT NULL DEFAULT 5,
   reviews INTEGER NOT NULL DEFAULT 0,
   distance_km REAL,

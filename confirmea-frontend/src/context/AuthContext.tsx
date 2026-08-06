@@ -2,11 +2,15 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, ApiError } from "../api/client";
 
+export type UserRole = "customer" | "admin" | "business";
+
 interface AuthUser {
   id: number;
   email: string;
   name: string;
-  role: "customer" | "admin";
+  role: UserRole;
+  businessId?: number;
+  businessName?: string;
 }
 
 interface AuthResponse {
@@ -17,7 +21,10 @@ interface AuthResponse {
 type AuthContextValue = {
   isLoggedIn: boolean;
   initializing: boolean;
+  role: UserRole | null;
   displayName: string | null;
+  businessId: number | null;
+  businessName: string | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
@@ -65,7 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
       });
-      if (newUser.role !== "customer") {
+      // Customers and businesses both use this app. Admin accounts belong in the
+      // separate web admin panel, not here.
+      if (newUser.role === "admin") {
         throw new ApiError(403, "That's an admin account — use the admin panel to log in instead.");
       }
       await persistSession(newToken, newUser);
@@ -75,11 +84,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(
     async (email: string, password: string, name: string) => {
+      // The backend only ever creates customer accounts through public registration —
+      // business accounts are created deliberately by an admin, not self-served.
       const { token: newToken, user: newUser } = await api.post<AuthResponse>("/auth/register", {
         email,
         password,
         name,
-        role: "customer",
       });
       await persistSession(newToken, newUser);
     },
@@ -97,7 +107,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         isLoggedIn: token !== null && user !== null,
         initializing,
+        role: user?.role ?? null,
         displayName: user?.name ?? null,
+        businessId: user?.businessId ?? null,
+        businessName: user?.businessName ?? null,
         token,
         login,
         register,

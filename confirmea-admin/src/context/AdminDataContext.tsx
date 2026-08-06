@@ -16,6 +16,7 @@ interface AdminDataContextValue {
   rejectApplication: (id: number, notes: string, reason: string) => Promise<void>;
   resolveComplaint: (id: number, notes: string, resolution: string) => Promise<void>;
   dismissComplaint: (id: number, notes: string, resolution: string) => Promise<void>;
+  createBusinessAccount: (businessId: number, email: string, password: string, name: string) => Promise<void>;
 }
 
 const AdminDataContext = createContext<AdminDataContextValue | undefined>(undefined);
@@ -121,6 +122,21 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
     [token, logActivity, refresh]
   );
 
+  const createBusinessAccount = useCallback(
+    async (businessId: number, email: string, password: string, name: string) => {
+      const created = await api.post<{ email: string; businessName: string }>(
+        `/businesses/${businessId}/account`,
+        { email, password, name },
+        token
+      );
+      setBusinesses((prev) =>
+        prev.map((b) => (b.id === businessId ? { ...b, accountEmail: created.email } : b))
+      );
+      logActivity("created", `Business login created for <b>${created.businessName}</b>`);
+    },
+    [token, logActivity]
+  );
+
   return (
     <AdminDataContext.Provider
       value={{
@@ -136,6 +152,7 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
         rejectApplication,
         resolveComplaint,
         dismissComplaint,
+        createBusinessAccount,
       }}
     >
       {children}

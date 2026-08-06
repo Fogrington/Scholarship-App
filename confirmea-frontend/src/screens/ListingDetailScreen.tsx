@@ -79,6 +79,12 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
           )}
           <MetaRow icon="time-outline" label={`Slot: ${listing.slotTime}`} />
           <MetaRow icon="star" label={`${listing.rating} (${listing.reviews} reviews)`} />
+          {listing.capacity > 1 && (
+            <MetaRow
+              icon="people-outline"
+              label={`${listing.remainingSpots} of ${listing.capacity} spots left`}
+            />
+          )}
         </View>
 
         <View style={styles.priceCard}>

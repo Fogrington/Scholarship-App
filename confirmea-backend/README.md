@@ -1,8 +1,8 @@
 # Confirmea Backend
 
-A real API for Confirmea — Express + TypeScript + SQLite (via `better-sqlite3`), no
-external services required. This replaces the mock data currently sitting separately
-in the mobile app and the admin panel with one shared source of truth.
+The real API for Confirmea — Express + TypeScript + SQLite (via `better-sqlite3`), no
+external services required. Both the mobile app (`confirmea`) and the admin panel
+(`confirmea-admin-app`) talk to this instead of holding their own mock data.
 
 Runs entirely on your machine at `http://localhost:4000`. The database is a single
 file (`data/confirmea.db`) — easy to inspect, easy to delete and start over.
@@ -17,62 +17,86 @@ npm run dev    # starts the API on http://localhost:4000 with auto-reload
 ```
 
 Seeded logins:
-- **Admin:** `admin@confirmea.app` / `admin123`
-- **Customer:** `fletch@example.com` / `password123`
+- **Admin:** `admin@confirmea.app` / `admin123` — the web admin panel
+- **Customer:** `fletch@example.com` / `password123` — the mobile app
+- **Business:** `barebeautybar@confirmea.app` / `business123` and
+  `saltandco@confirmea.app` / `business123` — also the mobile app, but lands on the
+  business dashboard instead of the customer screens
 
 To wipe and start fresh, just delete the `data/` folder and run `npm run seed` again.
+Do this any time you pull schema changes — SQLite won't add new columns to an existing
+file on its own.
 
 ## How auth works
 
-Stateless JWTs. Log in or register to get a token back, then send it on every
-subsequent request:
+Stateless JWTs. Log in to get a token back, then send it on every subsequent request:
 
 ```
 Authorization: Bearer <token>
 ```
 
-Tokens carry a `role` (`customer` or `admin`), and routes are locked down with
-`requireAuth` / `requireRole("admin")` middleware. This is what both frontends should
-switch to instead of their current mock login.
+Tokens carry a `role` (`customer`, `admin`, or `business`) and, for business accounts,
+a `businessId`. Routes are locked down with `requireAuth` / `requireRole(...)`
+middleware. Every `/business/*` route trusts `businessId` from the verified token
+only — never from anything the client sends — so one business account can't act on
+another's data even by guessing IDs.
+
+Public self-registration (`POST /auth/register`) only ever creates `customer`
+accounts. Admin and business accounts are created deliberately — admin accounts are
+seeded, business accounts via the admin-only `POST /businesses/:id/account`.
 
 ## API reference
 
 ### Auth
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/auth/register` | — | `{ email, password, name, role? }` returns `{ token, user }`. `role` defaults to `customer`. |
-| POST | `/auth/login` | — | `{ email, password }` returns `{ token, user }` |
+| POST | `/auth/register` | — | `{ email, password, name }` returns `{ token, user }`. Always creates a `customer`. |
+| POST | `/auth/login` | — | `{ email, password }` returns `{ token, user }`. For business accounts, `user` also includes `businessId` and `businessName`. |
 | GET | `/auth/me` | any | Current user from the token |
 
 ### Applications (business sign-ups)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/applications` | — | Submit a new application (public — a business doesn't need an account to apply) |
+| POST | `/applications` | — | Submit a new application (public — no account needed to apply) |
 | GET | `/applications` | admin | List all, optional `?status=pending` (or approved / rejected) |
 | GET | `/applications/:id` | admin | One application |
-| PATCH | `/applications/:id/checklist` | admin | `{ key: "abn" | "address" | "contact", value: boolean }` |
-| PATCH | `/applications/:id/approve` | admin | `{ notes? }`. Fails with 400 unless all three checklist items are true. Creates the live `business` row. |
-| PATCH | `/applications/:id/reject` | admin | `{ notes?, reason }` — `reason` is required |
+| PATCH | `/applications/:id/checklist` | admin | `{ key: "abn" or "address" or "contact", value: boolean }` |
+| PATCH | `/applications/:id/approve` | admin | `{ notes? }`. 400 unless all three checklist items are true. Creates the live `business` row. |
+| PATCH | `/applications/:id/reject` | admin | `{ notes?, reason }` — `reason` required |
 
 ### Businesses
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/businesses` | — | Public directory (for the consumer app) |
+| GET | `/businesses` | — | Public directory (consumer app) |
 | GET | `/businesses/admin` | admin | Same, plus an `openComplaints` count per business |
 | GET | `/businesses/:id` | — | One business |
+| POST | `/businesses/:id/account` | admin | `{ email, password, name }` — creates a business login tied to this business |
 
 ### Listings (bookable slots)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/listings` | — | `?category=Hair` and/or `?search=...` |
-| GET | `/listings/:id` | — | One listing |
-| POST | `/listings` | admin | Create a listing under a business (business self-service comes later) |
+| GET | `/listings` | — | `?category=Hair` and/or `?search=...`. Only returns slots that are active **and** not yet full (`capacity - upcoming bookings > 0`). |
+| GET | `/listings/:id` | — | One listing, regardless of fullness — includes `capacity`, `remainingSpots`, `isFull` |
+| POST | `/listings` | admin | Create a listing under any business, `capacity` optional (defaults to 1) |
 
-### Bookings
+### Bookings (customer side)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/bookings` | customer | `{ listingId }` — no payment info, that's handled in person |
+| POST | `/bookings` | customer | `{ listingId }` — no payment info, that's handled in person. Returns 409 if the slot filled up between the customer loading the list and booking (enforced server-side inside a transaction, not just hidden by the UI). |
 | GET | `/bookings/mine` | customer | The logged-in customer's bookings |
+
+### Business dashboard (business side)
+Every route here uses the `businessId` embedded in the logged-in business's token —
+never a value from the request.
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/business/profile` | business | This account's business record |
+| GET | `/business/listings` | business | All of this business's listings (active and closed), each with an `upcomingBookings` count |
+| POST | `/business/listings` | business | `{ service, category, price, discountPercent?, slotTime, capacity }` — posts a new open slot. `capacity` is required — how many customers can accept it before it stops showing up publicly. |
+| PATCH | `/business/listings/:id/close` | business | Sets `isActive: false` — stops it showing up publicly, keeps booking history. 403 if it's not this business's listing. |
+| GET | `/business/bookings` | business | Every booking against this business's listings, with customer name/email, optional `?status=Upcoming` |
+| PATCH | `/business/bookings/:id/arrived` | business | Marks a booking `Completed`. 403 if it's not this business's booking, 400 if it's not `Upcoming`. |
 
 ### Complaints
 | Method | Route | Auth | Description |
@@ -85,21 +109,6 @@ switch to instead of their current mock login.
 All error responses look like `{ "error": "message" }` (validation errors also include
 a `details` field from Zod).
 
-## Wiring up the two frontends
-
-Neither frontend talks to this yet — that's the next step. Rough plan:
-
-1. **Admin panel** (`confirmea-admin-app`): swap `AuthContext`'s fake login for a real
-   `POST /auth/login` call, and swap `AdminDataContext`'s in-memory state for `fetch`
-   calls to `/applications`, `/complaints`, `/businesses/admin`.
-2. **Mobile app** (`confirmea` Expo project): same idea — `AuthContext` calls
-   `/auth/login` / `/auth/register`, `HomeScreen` fetches `/listings`, and
-   `BookingsContext` calls `POST /bookings` and `GET /bookings/mine` instead of
-   holding everything in React state.
-3. Point both at `http://localhost:4000` for local dev (the Expo app on a physical
-   phone will need your computer's LAN IP instead of `localhost` — Expo will warn you
-   about this).
-
 ## Project structure
 
 ```
@@ -108,7 +117,14 @@ src/
     schema.sql     table definitions
     index.ts       opens the SQLite file, applies schema.sql
     seed.ts        starter data (npm run seed)
-  routes/          one file per resource
+  routes/
+    auth.routes.ts          register / login / me
+    applications.routes.ts  admin review queue
+    businesses.routes.ts    public directory + admin view + account creation
+    listings.routes.ts      public browsing + admin creation
+    bookings.routes.ts      customer booking flow
+    business.routes.ts      business dashboard (own listings + bookings)
+    complaints.routes.ts    admin complaint review
   middleware/      requireAuth, requireRole, error handler
   utils/           password hashing, JWT sign/verify, async route wrapper
   types.ts         shared TypeScript types for DB rows
@@ -122,3 +138,6 @@ src/
   Postgres that migrating later isn't a rewrite.
 - `JWT_SECRET` in `.env.example` is a placeholder — change it before this touches
   anything beyond your own machine.
+- The admin panel's Businesses page can create a business login directly now — click
+  a business with "no login" to open the create-account form. Still no reset/edit
+  flow for an existing login.

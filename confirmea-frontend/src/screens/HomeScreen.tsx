@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius } from "../theme/theme";
 import { categories, type Category, type Listing } from "../types";
@@ -28,27 +29,32 @@ export default function HomeScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+  // Refetch every time this screen comes into focus (not just on first mount) —
+  // so a slot that just filled up (here or from another customer) disappears as
+  // soon as you come back to Discover, instead of lingering from a stale fetch.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
 
-    api
-      .get<Listing[]>("/listings")
-      .then((data) => {
-        if (!cancelled) setListings(data);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load nearby slots.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      api
+        .get<Listing[]>("/listings")
+        .then((data) => {
+          if (!cancelled) setListings(data);
+        })
+        .catch((err) => {
+          if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load nearby slots.");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   const filtered = useMemo(() => {
     return listings.filter((l) => {

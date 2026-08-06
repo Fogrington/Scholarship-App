@@ -45,9 +45,10 @@ export interface Business {
   address: string;
   approvedAt: string;
   openComplaints?: number;
+  accountEmail?: string | null;
 }
 
-export type ActivityType = "approved" | "rejected" | "resolved" | "dismissed";
+export type ActivityType = "approved" | "rejected" | "resolved" | "dismissed" | "created";
 
 export interface ActivityEntry {
   id: string;

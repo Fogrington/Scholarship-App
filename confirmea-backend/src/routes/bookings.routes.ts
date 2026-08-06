@@ -45,21 +45,35 @@ router.post(
   asyncHandler(async (req, res) => {
     const { listingId } = createSchema.parse(req.body);
 
-    const listing = db
-      .prepare(
-        `SELECT l.*, b.name AS business_name, b.address AS business_address FROM listings l
-         JOIN businesses b ON b.id = l.business_id
-         WHERE l.id = ? AND l.is_active = 1`
-      )
-      .get(listingId) as ListingJoinRow | undefined;
-    if (!listing) throw new ApiError(404, "That slot isn't available.");
+    // better-sqlite3 is synchronous, so this whole check-then-insert runs as one
+    // uninterrupted block on Node's single thread — no other request can slip a
+    // booking in between the count check and the insert below.
+    const bookNow = db.transaction(() => {
+      const listing = db
+        .prepare(
+          `SELECT l.*, b.name AS business_name, b.address AS business_address FROM listings l
+           JOIN businesses b ON b.id = l.business_id
+           WHERE l.id = ? AND l.is_active = 1`
+        )
+        .get(listingId) as ListingJoinRow | undefined;
+      if (!listing) throw new ApiError(404, "That slot isn't available.");
 
-    const result = db
-      .prepare("INSERT INTO bookings (user_id, listing_id) VALUES (?, ?)")
-      .run(req.user!.sub, listingId);
+      const { count: bookedCount } = db
+        .prepare("SELECT COUNT(*) AS count FROM bookings WHERE listing_id = ? AND status = 'Upcoming'")
+        .get(listingId) as { count: number };
+      if (bookedCount >= listing.capacity) {
+        throw new ApiError(409, "This slot just filled up — try another one.");
+      }
 
-    const row = db.prepare("SELECT * FROM bookings WHERE id = ?").get(result.lastInsertRowid) as BookingRow;
-    res.status(201).json(serialize({ ...row, listing: listingSummary(listing) }));
+      const result = db
+        .prepare("INSERT INTO bookings (user_id, listing_id) VALUES (?, ?)")
+        .run(req.user!.sub, listingId);
+
+      const row = db.prepare("SELECT * FROM bookings WHERE id = ?").get(result.lastInsertRowid) as BookingRow;
+      return serialize({ ...row, listing: listingSummary(listing) });
+    });
+
+    res.status(201).json(bookNow());
   })
 );
 

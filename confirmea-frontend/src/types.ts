@@ -10,6 +10,9 @@ export interface Listing {
   price: number;
   discountPercent: number | null;
   slotTime: string; // e.g. "Today, 4:30 PM"
+  capacity: number;
+  remainingSpots: number;
+  isFull: boolean;
   rating: number;
   reviews: number;
   distanceKm: number | null;
@@ -46,4 +49,45 @@ export interface Booking {
   status: BookingStatus;
   createdAt: string;
   listing: BookingListingSummary | null;
+}
+
+// ---- Business dashboard (role: "business") ----
+
+export interface BusinessProfile {
+  id: number;
+  name: string;
+  category: string;
+  address: string;
+  approvedAt: string;
+}
+
+export interface BusinessListing {
+  id: number;
+  businessId: number;
+  service: string;
+  category: string;
+  price: number;
+  discountPercent: number | null;
+  slotTime: string;
+  capacity: number;
+  isActive: boolean;
+  upcomingBookings: number;
+  remainingSpots: number;
+  isFull: boolean;
+  createdAt: string;
+}
+
+export interface BusinessBooking {
+  id: number;
+  status: BookingStatus;
+  createdAt: string;
+  customer: { name: string; email: string };
+  listing: {
+    id: number;
+    service: string;
+    category: string;
+    price: number;
+    discountPercent: number | null;
+    slotTime: string;
+  };
 }

@@ -4,11 +4,13 @@ The "Confirm Me" / Confirmea app — a last-minute booking marketplace for hair,
 nails, waxing, and massage appointments. Built for the Winter Scholarship project with
 Julia.
 
-Now wired to the real `confirmea-backend` API instead of in-memory mock data — a
-business approved in the admin panel actually shows up bookable here.
+Wired to the real `confirmea-backend` API. Now supports **two account types in one
+app**: customers browsing and booking slots, and businesses managing their own open
+slots and bookings — the app shows a completely different dashboard depending on
+which kind of account you log in with.
 
-**This build is scoped to the average client user only.** Business and admin tooling
-lives in the separate `confirmea-admin-app` web panel, not this mobile app.
+Admin/moderation tooling still lives in the separate `confirmea-admin-app` web panel,
+not this app.
 
 ## Running it
 
@@ -31,9 +33,7 @@ computer's actual network IP — Expo Go on your phone can't reach your computer
 # Windows: ipconfig   (look for "IPv4 Address" under your Wi-Fi adapter)
 ```
 
-Your phone and computer need to be on the same Wi-Fi network. Full details, including
-the iOS Simulator / Android Emulator exceptions, are in the comments at the top of
-`src/api/config.ts`.
+Your phone and computer need to be on the same Wi-Fi network.
 
 Then:
 
@@ -42,24 +42,50 @@ npm install
 npx expo start
 ```
 
-Scan the QR code with Expo Go, same as before. Log in with the seeded customer
-account — **fletch@example.com** / **password123** — or tap "New to Confirmea? Sign up"
-to create a fresh account (it hits the real `/auth/register` endpoint).
+Scan the QR code with Expo Go, same as always.
+
+## Logging in as each account type
+
+- **Customer:** `fletch@example.com` / `password123`, or tap "Sign up" to register a
+  new one (self-registration always creates a customer account).
+- **Business:** `barebeautybar@confirmea.app` / `business123`, or
+  `saltandco@confirmea.app` / `business123`. Business accounts aren't self-serve —
+  they're created by an admin (via the backend's `POST /businesses/:id/account`, seeded
+  for these two for demo purposes). Logging in with one goes straight to the business
+  dashboard instead of the customer Discover screen.
 
 ## What's in here
 
-- **Login screen**: real login/signup against the backend now, not a mock. Session
-  persists across app restarts via `AsyncStorage`, so you don't have to log in every
-  time. Rejects admin accounts client-side — those belong in the admin panel.
-- **Discover tab**: fetches real listings from `GET /listings`, with loading and error
-  states. Category filter and search still work the same as before, just filtering
-  real data now instead of six hardcoded entries.
-- **Booking flow**: tap a slot → detail screen → reserve. This now calls
-  `POST /bookings` for real — the reservation is a row in the backend's SQLite
-  database, not local state that resets on refresh. Payment still happens **in
-  person** at the business; the app just advertises the price.
-- **Bookings tab**: fetches `GET /bookings/mine`, so it reflects whatever's actually
-  in the database for your account, including from previous sessions.
+### Customer side
+- **Discover tab**: real listings from `GET /listings`, filter by category, search.
+  Refetches every time you come back to this screen (not just on first load), so a
+  slot that just filled up — here or from another customer — disappears instead of
+  lingering from a stale fetch. Slots with only 1-2 spots left on a multi-spot listing
+  show a "spots left" callout.
+- **Booking flow**: reserve a slot for real via `POST /bookings`. Payment still happens
+  in person. If two people go for the last spot on a slot at the same moment, the
+  server (not just the UI) decides who gets it — the other gets a clear "just filled
+  up" message instead of a phantom booking.
+- **Bookings tab**: `GET /bookings/mine`.
+
+### Business side
+- **Slots tab**: every open slot this business has posted, with a live "X of Y spots
+  booked" count and a distinct **Full** badge once it hits capacity (separate from
+  **Closed**, which is the business manually pulling it down). Tap **+** to post a new
+  one — service, category, price, optional discount, a **day/time picker** (Today or
+  Tomorrow, half-hour slots from 8:00 AM to 9:00 PM) instead of free text, and a
+  **capacity stepper** for how many customers can accept it. Once that many have
+  booked, it stops showing up on Discover automatically. Tap "Close this slot" to pull
+  it down early without losing its booking history.
+- **Bookings tab**: every customer who's booked one of this business's slots, with
+  their name, email, and which service/time they booked. Tap "Mark arrived" once
+  they've shown up — this closes the booking out as `Completed`.
+- **Profile tab**: shared with the customer version, shows business info and logout
+  instead of customer account info.
+
+Every business-side write is scoped server-side to the logged-in business's own data —
+one business can never see or touch another's bookings or listings, even by guessing
+IDs. Verified directly against the API before this was wired into the UI.
 
 Color scheme is apricot (#F2A65A) and black (#1A1A1A) on a warm cream background, per
 Julia's whimsical/friendly styling preference — unchanged.
@@ -69,12 +95,13 @@ Julia's whimsical/friendly styling preference — unchanged.
 ```
 src/
   api/           config.ts (backend URL — edit this), client.ts (fetch wrapper)
-  context/       AuthContext (real login/session via AsyncStorage), BookingsContext
-                 (fetches + posts real bookings)
+  context/       AuthContext (login/session, now role-aware), BookingsContext
+                 (customer bookings), BusinessContext (business listings + bookings)
   screens/       LoginScreen, HomeScreen, ListingDetailScreen, BookingsScreen,
-                 ProfileScreen
-  navigation/    RootNavigator — shows a loading spinner while checking for a saved
-                 session, then gates Login vs the main tabs
+                 ProfileScreen (shared), BusinessSlotsScreen, AddSlotScreen,
+                 BusinessBookingsScreen
+  navigation/    RootNavigator — branches into ClientTabs or BusinessTabs by role,
+                 after a loading state while checking for a saved session
   types.ts       shared types, matching the backend's JSON shapes field-for-field
   theme/         design tokens (apricot/black brand, shared with the admin panel)
 ```
@@ -82,9 +109,12 @@ src/
 ## Next steps
 
 - Real geolocation instead of the seeded `distanceKm` values
-- A proper business registration flow that feeds into the admin panel's applications
-  queue (right now businesses only get created via an approved application, seeded or
-  entered manually)
-- Push notifications for booking confirmations/reminders
-- Consider a refresh token flow before this goes near production — same caveat as the
-  admin panel's 7-day JWT
+- Push notifications — e.g. notify a business when a slot gets booked, or a customer
+  when their business marks them arrived
+- Let a business edit an existing slot (including capacity) instead of only closing
+  and re-posting
+- A real calendar/date picker if slots ever need to go beyond "Today"/"Tomorrow" —
+  the current day+time chip picker is deliberately scoped to a last-minute app
+- Consider a refresh token flow before this goes near production — same caveat as
+  everywhere else in this project: the current 7-day JWT expiry is fine for a
+  prototype, not for real use

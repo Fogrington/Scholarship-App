@@ -1,4 +1,4 @@
-export type UserRole = "customer" | "admin";
+export type UserRole = "customer" | "admin" | "business";
 
 export interface UserRow {
   id: number;
@@ -6,6 +6,7 @@ export interface UserRow {
   password_hash: string;
   name: string;
   role: UserRole;
+  business_id: number | null;
   created_at: string;
 }
 
@@ -47,6 +48,7 @@ export interface ListingRow {
   price: number;
   discount_percent: number | null;
   slot_time: string;
+  capacity: number;
   rating: number;
   reviews: number;
   distance_km: number | null;
@@ -83,4 +85,5 @@ export interface AuthTokenPayload {
   sub: number;
   role: UserRole;
   email: string;
+  businessId?: number;
 }

@@ -74,7 +74,12 @@ npm run preview   # serves the built dist/ folder locally to sanity-check it
   Resolving or dismissing requires a written outcome note and hits
   `PATCH /complaints/:id/resolve` or `/dismiss`.
 - **Businesses** — from `GET /businesses/admin`, which includes a server-computed
-  open-complaints count per business.
+  open-complaints count per business, plus whether it already has a mobile-app login
+  (`accountEmail`). Click a business to open its drawer: businesses with no login show
+  a create-account form (name, email, temporary password) that calls
+  `POST /businesses/:id/account`; businesses that already have one show it read-only.
+  There's no reset/edit flow yet — the password has to be shared with the business
+  directly.
 
 ## Project structure
 
@@ -82,11 +87,12 @@ npm run preview   # serves the built dist/ folder locally to sanity-check it
 src/
   api/           client.ts — small fetch wrapper, attaches the Bearer token
   context/       AuthContext (real login/session), AdminDataContext (fetches +
-                 mutates real applications/complaints/businesses)
+                 mutates real applications/complaints/businesses, plus business
+                 account creation)
   components/    ProtectedRoute, Drawer, Pill, EmptyState, Icons
   pages/         LoginPage, AdminLayout (sidebar shell), OverviewPage,
                  ApplicationsPage, ComplaintsPage, BusinessesPage,
-                 ApplicationDrawer, ComplaintDrawer
+                 ApplicationDrawer, ComplaintDrawer, BusinessAccountDrawer
   utils/         formatDateTime.ts — turns SQLite timestamps into readable local time
   types.ts       shared types, matching the backend's JSON shapes field-for-field
   theme.css      design tokens (apricot/black brand, shared across both apps)
@@ -96,7 +102,7 @@ src/
 
 - Wire up the mobile app (`confirmea` Expo project) the same way — same backend,
   same token pattern, just customer-role endpoints (`/listings`, `/bookings`) instead
-  of admin ones.
+  of admin ones. **Done** — see the `confirmea` project's README.
 - Add a real audit-log endpoint on the backend so the activity feed survives a
   refresh instead of being session-only.
 - Consider short-lived tokens + a refresh flow before this goes anywhere near

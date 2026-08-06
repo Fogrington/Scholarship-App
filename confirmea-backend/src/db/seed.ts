@@ -44,20 +44,29 @@ function seed() {
       businessIds[b.name] = Number(result.lastInsertRowid);
     }
 
+    // ---- Business accounts (log into the mobile app's business dashboard) ----
+    db.prepare(
+      "INSERT INTO users (email, password_hash, name, role, business_id) VALUES (?, ?, ?, 'business', ?)"
+    ).run("barebeautybar@confirmea.app", hashPassword("business123"), "Bare Beauty Bar", businessIds["Bare Beauty Bar"]);
+
+    db.prepare(
+      "INSERT INTO users (email, password_hash, name, role, business_id) VALUES (?, ?, ?, 'business', ?)"
+    ).run("saltandco@confirmea.app", hashPassword("business123"), "Salt & Co Hair Studio", businessIds["Salt & Co Hair Studio"]);
+
     // ---- Listings (bookable slots) for those businesses ----
     const listings = [
-      { biz: "Salt & Co Hair Studio", service: "Women's Cut & Blow Dry", category: "Hair", price: 65, discount: 20, slot: "Today, 4:30 PM", rating: 4.8, reviews: 212, distance: 1.2 },
-      { biz: "Bare Beauty Bar", service: "Express Facial", category: "Beauty", price: 55, discount: 15, slot: "Today, 5:00 PM", rating: 4.9, reviews: 88, distance: 0.8 },
-      { biz: "Polished Nail Lounge", service: "Gel Manicure", category: "Nails", price: 45, discount: null, slot: "Today, 3:45 PM", rating: 4.6, reviews: 150, distance: 2.4 },
-      { biz: "Smooth Skin Studio", service: "Leg Wax", category: "Waxing", price: 40, discount: null, slot: "Tomorrow, 10:00 AM", rating: 4.7, reviews: 64, distance: 1.9 },
-      { biz: "Unwind Massage Co", service: "60min Relaxation Massage", category: "Massage", price: 95, discount: 10, slot: "Today, 6:15 PM", rating: 5.0, reviews: 41, distance: 3.1 },
-      { biz: "Barber & Sons", service: "Men's Cut & Beard Trim", category: "Hair", price: 38, discount: null, slot: "Today, 4:00 PM", rating: 4.5, reviews: 302, distance: 0.5 },
+      { biz: "Salt & Co Hair Studio", service: "Women's Cut & Blow Dry", category: "Hair", price: 65, discount: 20, slot: "Today, 4:30 PM", capacity: 1, rating: 4.8, reviews: 212, distance: 1.2 },
+      { biz: "Bare Beauty Bar", service: "Express Facial", category: "Beauty", price: 55, discount: 15, slot: "Today, 5:00 PM", capacity: 2, rating: 4.9, reviews: 88, distance: 0.8 },
+      { biz: "Polished Nail Lounge", service: "Gel Manicure", category: "Nails", price: 45, discount: null, slot: "Today, 3:45 PM", capacity: 1, rating: 4.6, reviews: 150, distance: 2.4 },
+      { biz: "Smooth Skin Studio", service: "Leg Wax", category: "Waxing", price: 40, discount: null, slot: "Tomorrow, 10:00 AM", capacity: 1, rating: 4.7, reviews: 64, distance: 1.9 },
+      { biz: "Unwind Massage Co", service: "60min Relaxation Massage", category: "Massage", price: 95, discount: 10, slot: "Today, 6:15 PM", capacity: 1, rating: 5.0, reviews: 41, distance: 3.1 },
+      { biz: "Barber & Sons", service: "Men's Cut & Beard Trim", category: "Hair", price: 38, discount: null, slot: "Today, 4:00 PM", capacity: 3, rating: 4.5, reviews: 302, distance: 0.5 },
     ];
     for (const l of listings) {
       db.prepare(
-        `INSERT INTO listings (business_id, service, category, price, discount_percent, slot_time, rating, reviews, distance_km)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(businessIds[l.biz], l.service, l.category, l.price, l.discount, l.slot, l.rating, l.reviews, l.distance);
+        `INSERT INTO listings (business_id, service, category, price, discount_percent, slot_time, capacity, rating, reviews, distance_km)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(businessIds[l.biz], l.service, l.category, l.price, l.discount, l.slot, l.capacity, l.rating, l.reviews, l.distance);
     }
 
     // ---- Applications (the admin panel's review queue) ----
@@ -155,6 +164,7 @@ function seed() {
   console.log("Seed complete.");
   console.log("Admin login: admin@confirmea.app / admin123");
   console.log("Customer login: fletch@example.com / password123");
+  console.log("Business logins: barebeautybar@confirmea.app / business123, saltandco@confirmea.app / business123");
 }
 
 seed();

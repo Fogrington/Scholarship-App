@@ -726,7 +726,8 @@ input {
 }
 
 .activity-dot.approved,
-.activity-dot.resolved {
+.activity-dot.resolved,
+.activity-dot.created {
   background: var(--success);
 }
 

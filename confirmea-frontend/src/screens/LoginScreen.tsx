@@ -139,7 +139,8 @@ export default function LoginScreen() {
           </View>
 
           <Text style={styles.prototypeNote}>
-            Business and admin accounts live in a separate web portal, not this app.
+            Business accounts are created by Confirmea admins — reach out if your
+            business needs one. Admin accounts still live in the separate web portal.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

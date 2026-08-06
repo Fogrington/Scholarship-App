@@ -13,7 +13,11 @@ import HomeScreen from "../screens/HomeScreen";
 import ListingDetailScreen from "../screens/ListingDetailScreen";
 import BookingsScreen from "../screens/BookingsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import BusinessSlotsScreen from "../screens/BusinessSlotsScreen";
+import AddSlotScreen from "../screens/AddSlotScreen";
+import BusinessBookingsScreen from "../screens/BusinessBookingsScreen";
 
+// ---- Customer navigation ----
 export type ClientStackParamList = {
   Home: undefined;
   ListingDetail: { listing: Listing };
@@ -25,14 +29,43 @@ export type ClientTabParamList = {
   ProfileTab: undefined;
 };
 
+// ---- Business navigation ----
+export type BusinessStackParamList = {
+  Slots: undefined;
+  AddSlot: undefined;
+};
+
+export type BusinessTabParamList = {
+  SlotsTab: undefined;
+  BusinessBookingsTab: undefined;
+  ProfileTab: undefined;
+};
+
 export type RootStackParamList = {
   Login: undefined;
   ClientTabs: undefined;
+  BusinessTabs: undefined;
 };
 
 const ClientStack = createNativeStackNavigator<ClientStackParamList>();
-const Tab = createBottomTabNavigator<ClientTabParamList>();
+const ClientTab = createBottomTabNavigator<ClientTabParamList>();
+const BusinessStack = createNativeStackNavigator<BusinessStackParamList>();
+const BusinessTab = createBottomTabNavigator<BusinessTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
+
+const tabBarOptions = {
+  headerShown: false,
+  tabBarActiveTintColor: colors.black,
+  tabBarInactiveTintColor: colors.textMuted,
+  tabBarStyle: {
+    backgroundColor: colors.white,
+    borderTopColor: colors.border,
+    height: 64,
+    paddingBottom: 10,
+    paddingTop: 8,
+  },
+  tabBarLabelStyle: { fontSize: 11, fontWeight: "700" as const },
+};
 
 function HomeStackNavigator() {
   return (
@@ -45,19 +78,9 @@ function HomeStackNavigator() {
 
 function ClientTabs() {
   return (
-    <Tab.Navigator
+    <ClientTab.Navigator
       screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colors.black,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopColor: colors.border,
-          height: 64,
-          paddingBottom: 10,
-          paddingTop: 8,
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "700" },
+        ...tabBarOptions,
         tabBarIcon: ({ color, size }) => {
           const icons: Record<keyof ClientTabParamList, keyof typeof Ionicons.glyphMap> = {
             HomeTab: "home",
@@ -68,15 +91,52 @@ function ClientTabs() {
         },
       })}
     >
-      <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Discover" }} />
-      <Tab.Screen name="BookingsTab" component={BookingsScreen} options={{ title: "Bookings" }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: "Profile" }} />
-    </Tab.Navigator>
+      <ClientTab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Discover" }} />
+      <ClientTab.Screen name="BookingsTab" component={BookingsScreen} options={{ title: "Bookings" }} />
+      <ClientTab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: "Profile" }} />
+    </ClientTab.Navigator>
+  );
+}
+
+function SlotsStackNavigator() {
+  return (
+    <BusinessStack.Navigator screenOptions={{ headerShown: false }}>
+      <BusinessStack.Screen name="Slots" component={BusinessSlotsScreen} />
+      <BusinessStack.Screen name="AddSlot" component={AddSlotScreen} />
+    </BusinessStack.Navigator>
+  );
+}
+
+function BusinessTabs() {
+  return (
+    <BusinessTab.Navigator
+      screenOptions={({ route }) => ({
+        ...tabBarOptions,
+        tabBarIcon: ({ color, size }) => {
+          const icons: Record<keyof BusinessTabParamList, keyof typeof Ionicons.glyphMap> = {
+            SlotsTab: "grid-outline",
+            BusinessBookingsTab: "calendar",
+            ProfileTab: "person",
+          };
+          return (
+            <Ionicons name={icons[route.name as keyof BusinessTabParamList]} size={size - 2} color={color} />
+          );
+        },
+      })}
+    >
+      <BusinessTab.Screen name="SlotsTab" component={SlotsStackNavigator} options={{ title: "Slots" }} />
+      <BusinessTab.Screen
+        name="BusinessBookingsTab"
+        component={BusinessBookingsScreen}
+        options={{ title: "Bookings" }}
+      />
+      <BusinessTab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: "Profile" }} />
+    </BusinessTab.Navigator>
   );
 }
 
 export default function RootNavigator() {
-  const { isLoggedIn, initializing } = useAuth();
+  const { isLoggedIn, initializing, role } = useAuth();
 
   if (initializing) {
     // Checking AsyncStorage for a saved session — avoids a flash of the login
@@ -91,10 +151,12 @@ export default function RootNavigator() {
   return (
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        {isLoggedIn ? (
-          <RootStack.Screen name="ClientTabs" component={ClientTabs} />
-        ) : (
+        {!isLoggedIn ? (
           <RootStack.Screen name="Login" component={LoginScreen} />
+        ) : role === "business" ? (
+          <RootStack.Screen name="BusinessTabs" component={BusinessTabs} />
+        ) : (
+          <RootStack.Screen name="ClientTabs" component={ClientTabs} />
         )}
       </RootStack.Navigator>
     </NavigationContainer>

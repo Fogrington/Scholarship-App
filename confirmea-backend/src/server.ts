@@ -9,6 +9,7 @@ import businessesRoutes from "./routes/businesses.routes.js";
 import listingsRoutes from "./routes/listings.routes.js";
 import bookingsRoutes from "./routes/bookings.routes.js";
 import complaintsRoutes from "./routes/complaints.routes.js";
+import businessSelfServiceRoutes from "./routes/business.routes.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 
 const app = express();
@@ -25,6 +26,7 @@ app.use("/businesses", businessesRoutes);
 app.use("/listings", listingsRoutes);
 app.use("/bookings", bookingsRoutes);
 app.use("/complaints", complaintsRoutes);
+app.use("/business", businessSelfServiceRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

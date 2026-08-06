@@ -44,6 +44,14 @@ export default function ServiceCard({ listing, onPress }: Props) {
           <Text style={styles.metaText}>{listing.rating}</Text>
           <Text style={styles.dot}>•</Text>
           <Text style={styles.metaText}>{listing.reviews} reviews</Text>
+          {listing.capacity > 1 && listing.remainingSpots <= 2 && (
+            <>
+              <Text style={styles.dot}>•</Text>
+              <Text style={styles.lowSpots}>
+                {listing.remainingSpots} spot{listing.remainingSpots === 1 ? "" : "s"} left
+              </Text>
+            </>
+          )}
         </View>
 
         <View style={[styles.rowBetween, { marginTop: spacing.sm }]}>
@@ -106,6 +114,11 @@ const styles = StyleSheet.create({
   dot: {
     ...typography.caption,
     marginHorizontal: 5,
+  },
+  lowSpots: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.warning,
   },
   timeTag: {
     flexDirection: "row",

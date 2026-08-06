@@ -3,16 +3,13 @@ import { View, Text, StyleSheet, SafeAreaView, Pressable, Alert } from "react-na
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useAuth } from "../context/AuthContext";
-import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import type { ClientTabParamList } from "../navigation/RootNavigator";
 
-type Props = BottomTabScreenProps<ClientTabParamList, "ProfileTab">;
-
-export default function ProfileScreen(_props: Props) {
-  const { displayName, logout } = useAuth();
+export default function ProfileScreen() {
+  const { displayName, role, businessName, logout } = useAuth();
+  const isBusiness = role === "business";
 
   const confirmLogout = () => {
-    Alert.alert("Log out?", "You'll need to log back in to book slots.", [
+    Alert.alert("Log out?", "You'll need to log back in to continue.", [
       { text: "Cancel", style: "cancel" },
       { text: "Log out", style: "destructive", onPress: () => logout() },
     ]);
@@ -24,19 +21,28 @@ export default function ProfileScreen(_props: Props) {
 
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
-          <Ionicons name="person" size={26} color={colors.white} />
+          <Ionicons name={isBusiness ? "storefront" : "person"} size={26} color={colors.white} />
         </View>
         <View style={{ marginLeft: spacing.md }}>
-          <Text style={typography.subheading}>{displayName ?? "Guest"}</Text>
-          <Text style={typography.caption}>Newcastle, NSW</Text>
+          <Text style={typography.subheading}>{isBusiness ? businessName ?? "Your business" : displayName ?? "Guest"}</Text>
+          <Text style={typography.caption}>
+            {isBusiness ? `Business account · ${displayName ?? ""}` : "Newcastle, NSW"}
+          </Text>
         </View>
       </View>
 
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
-      <View style={styles.row}>
-        <Ionicons name="cash-outline" size={20} color={colors.apricotDark} />
-        <Text style={styles.rowLabel}>Payment is in person — no card on file</Text>
-      </View>
+      {isBusiness ? (
+        <View style={styles.row}>
+          <Ionicons name="business-outline" size={20} color={colors.apricotDark} />
+          <Text style={styles.rowLabel}>Business tools live under Slots &amp; Bookings</Text>
+        </View>
+      ) : (
+        <View style={styles.row}>
+          <Ionicons name="cash-outline" size={20} color={colors.apricotDark} />
+          <Text style={styles.rowLabel}>Payment is in person — no card on file</Text>
+        </View>
+      )}
       <View style={styles.row}>
         <Ionicons name="notifications-outline" size={20} color={colors.apricotDark} />
         <Text style={styles.rowLabel}>Notifications</Text>
