@@ -1,37 +1,42 @@
 import React, { useState } from "react";
-import { View, Text, FlatList, StyleSheet, SafeAreaView, Pressable, ActivityIndicator, Alert } from "react-native";
+import { View, Text, FlatList, StyleSheet, SafeAreaView, Pressable, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useBusiness } from "../context/BusinessContext";
 import Badge from "../components/Badge";
+import ConfirmModal from "../components/ConfirmModal";
 import { ApiError } from "../api/client";
 
 export default function BusinessBookingsScreen() {
   const { bookings, loading, error, markArrived } = useBusiness();
   const [markingId, setMarkingId] = useState<number | null>(null);
+  const [pending, setPending] = useState<{ id: number; customerName: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const handleMarkArrived = (id: number, customerName: string) => {
-    Alert.alert("Mark as arrived?", `Confirm ${customerName} has arrived for their appointment.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Mark arrived",
-        onPress: async () => {
-          setMarkingId(id);
-          try {
-            await markArrived(id);
-          } catch (err) {
-            Alert.alert("Couldn't update it", err instanceof ApiError ? err.message : "Try again.");
-          } finally {
-            setMarkingId(null);
-          }
-        },
-      },
-    ]);
+  const handleConfirmArrived = async () => {
+    if (!pending) return;
+    const { id } = pending;
+    setPending(null);
+    setActionError(null);
+    setMarkingId(id);
+    try {
+      await markArrived(id);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Couldn't update it. Try again.");
+    } finally {
+      setMarkingId(null);
+    }
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <Text style={[typography.heading, styles.title]}>Bookings</Text>
+
+      {actionError && (
+        <View style={styles.actionErrorBox}>
+          <Text style={styles.actionErrorText}>{actionError}</Text>
+        </View>
+      )}
 
       {error ? (
         <View style={styles.empty}>
@@ -68,7 +73,7 @@ export default function BusinessBookingsScreen() {
               {item.status === "Upcoming" && (
                 <Pressable
                   style={styles.arrivedBtn}
-                  onPress={() => handleMarkArrived(item.id, item.customer.name)}
+                  onPress={() => setPending({ id: item.id, customerName: item.customer.name })}
                   disabled={markingId === item.id}
                 >
                   <Ionicons name="checkmark-circle-outline" size={16} color={colors.white} />
@@ -87,6 +92,15 @@ export default function BusinessBookingsScreen() {
           }
         />
       )}
+
+      <ConfirmModal
+        visible={pending !== null}
+        title="Mark as arrived?"
+        message={pending ? `Confirm ${pending.customerName} has arrived for their appointment.` : ""}
+        confirmLabel="Mark arrived"
+        onCancel={() => setPending(null)}
+        onConfirm={handleConfirmArrived}
+      />
     </SafeAreaView>
   );
 }
@@ -95,6 +109,14 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   title: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, marginBottom: spacing.md, fontSize: 20 },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
+  actionErrorBox: {
+    backgroundColor: "#FBEAE6",
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  actionErrorText: { color: colors.warning, fontSize: 12.5, fontWeight: "600" },
   card: {
     backgroundColor: colors.white,
     borderRadius: radius.md,

@@ -18,10 +18,17 @@ npm run dev    # starts the API on http://localhost:4000 with auto-reload
 
 Seeded logins:
 - **Admin:** `admin@confirmea.app` / `admin123` — the web admin panel
-- **Customer:** `fletch@example.com` / `password123` — the mobile app
+- **Customer:** `fletch@example.com` / `password123` — the mobile app. Has one
+  completed, unreviewed booking, so logging in immediately triggers the "rate your
+  visit" star-rating prompt — a ready-made demo of that flow.
 - **Business:** `barebeautybar@confirmea.app` / `business123` and
   `saltandco@confirmea.app` / `business123` — also the mobile app, but lands on the
   business dashboard instead of the customer screens
+- **Dummy reviewers:** `reviewer1@confirmea.app` through `reviewer10@confirmea.app`,
+  all `reviewer123` — not meant to be logged into during a demo, just the accounts
+  behind the fabricated review history that gives each business a realistic rating.
+  Every dummy review is attached to a real (fabricated) completed booking, not a
+  free-floating number.
 
 To wipe and start fresh, just delete the `data/` folder and run `npm run seed` again.
 Do this any time you pull schema changes — SQLite won't add new columns to an existing
@@ -67,7 +74,7 @@ seeded, business accounts via the admin-only `POST /businesses/:id/account`.
 ### Businesses
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/businesses` | — | Public directory (consumer app) |
+| GET | `/businesses` | — | Public directory (consumer app). Includes `rating` (null until the business has at least one review) and `reviewCount`, aggregated live from the `reviews` table. |
 | GET | `/businesses/admin` | admin | Same, plus an `openComplaints` count per business |
 | GET | `/businesses/:id` | — | One business |
 | POST | `/businesses/:id/account` | admin | `{ email, password, name }` — creates a business login tied to this business |
@@ -75,8 +82,8 @@ seeded, business accounts via the admin-only `POST /businesses/:id/account`.
 ### Listings (bookable slots)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/listings` | — | `?category=Hair` and/or `?search=...`. Only returns slots that are active **and** not yet full (`capacity - upcoming bookings > 0`). |
-| GET | `/listings/:id` | — | One listing, regardless of fullness — includes `capacity`, `remainingSpots`, `isFull` |
+| GET | `/listings` | — | `?category=Hair`, `?search=...`, and/or `?lat=&lng=`. Only returns slots that are active **and** not yet full. When `lat`/`lng` are given (the mobile app always sends the selected suburb's coordinates), each result gets a real `distanceKm` computed against the business's coordinates, and results are sorted closest-first. Without them, `distanceKm` is `null` and order is by creation date. |
+| GET | `/listings/:id` | — | One listing, regardless of fullness — includes `capacity`, `remainingSpots`, `isFull`, and the same optional `?lat=&lng=` distance behavior |
 | POST | `/listings` | admin | Create a listing under any business, `capacity` optional (defaults to 1) |
 
 ### Bookings (customer side)
@@ -84,6 +91,8 @@ seeded, business accounts via the admin-only `POST /businesses/:id/account`.
 |---|---|---|---|
 | POST | `/bookings` | customer | `{ listingId }` — no payment info, that's handled in person. Returns 409 if the slot filled up between the customer loading the list and booking (enforced server-side inside a transaction, not just hidden by the UI). |
 | GET | `/bookings/mine` | customer | The logged-in customer's bookings |
+| GET | `/bookings/pending-review` | customer | Completed bookings with no review yet — the mobile app prompts a star rating for these after login |
+| POST | `/bookings/:id/review` | customer | `{ rating: 1-5 }` — one review per booking, enforced by a UNIQUE constraint plus an explicit check. 400 unless the booking is `Completed`, 409 if already reviewed. |
 
 ### Business dashboard (business side)
 Every route here uses the `businessId` embedded in the logged-in business's token —
@@ -126,7 +135,8 @@ src/
     business.routes.ts      business dashboard (own listings + bookings)
     complaints.routes.ts    admin complaint review
   middleware/      requireAuth, requireRole, error handler
-  utils/           password hashing, JWT sign/verify, async route wrapper
+  utils/           password hashing, JWT sign/verify, async route wrapper, haversine
+                   distance calculation (geo.ts)
   types.ts         shared TypeScript types for DB rows
   server.ts        Express app + route wiring
 ```
@@ -141,3 +151,11 @@ src/
 - The admin panel's Businesses page can create a business login directly now — click
   a business with "no login" to open the create-account form. Still no reset/edit
   flow for an existing login.
+- Ratings are deliberately not editable or deletable once submitted — there's no
+  "update my review" endpoint yet. A customer gets exactly one shot per completed
+  booking, which is enough for the prototype but worth revisiting for real use.
+- Location is suburb selection, not real GPS tracking — the mobile app has a fixed
+  list of Newcastle suburbs with real coordinates (`NEWCASTLE_SUBURBS` in its
+  `types.ts`), and businesses have real coordinates too (their suburb's centroid, not
+  a surveyed address point). Distance is a genuine haversine calculation between the
+  two, not a fake number — it's just not driven by the device's actual location.

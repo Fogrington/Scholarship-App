@@ -37,13 +37,23 @@ export default function ServiceCard({ listing, onPress }: Props) {
         </Text>
 
         <View style={styles.metaRow}>
-          <Ionicons name="location-outline" size={13} color={colors.textMuted} />
-          <Text style={styles.metaText}>{listing.distanceKm} km</Text>
-          <Text style={styles.dot}>•</Text>
-          <Ionicons name="star" size={13} color={colors.apricotDark} />
-          <Text style={styles.metaText}>{listing.rating}</Text>
-          <Text style={styles.dot}>•</Text>
-          <Text style={styles.metaText}>{listing.reviews} reviews</Text>
+          {listing.distanceKm != null && (
+            <>
+              <Ionicons name="location-outline" size={13} color={colors.textMuted} />
+              <Text style={styles.metaText}>{listing.distanceKm} km</Text>
+              <Text style={styles.dot}>•</Text>
+            </>
+          )}
+          {listing.rating !== null ? (
+            <>
+              <Ionicons name="star" size={13} color={colors.apricotDark} />
+              <Text style={styles.metaText}>{listing.rating}</Text>
+              <Text style={styles.dot}>•</Text>
+              <Text style={styles.metaText}>{listing.reviews} reviews</Text>
+            </>
+          ) : (
+            <Text style={styles.metaText}>New — no reviews yet</Text>
+          )}
           {listing.capacity > 1 && listing.remainingSpots <= 2 && (
             <>
               <Text style={styles.dot}>•</Text>

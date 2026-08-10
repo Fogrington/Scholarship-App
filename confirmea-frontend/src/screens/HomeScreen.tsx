@@ -7,15 +7,17 @@ import {
   SafeAreaView,
   TextInput,
   ActivityIndicator,
+  Pressable,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius } from "../theme/theme";
-import { categories, type Category, type Listing } from "../types";
+import { categories, NEWCASTLE_SUBURBS, type Category, type Listing, type Suburb } from "../types";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import CategoryPill from "../components/CategoryPill";
 import ServiceCard from "../components/ServiceCard";
+import LocationPickerModal from "../components/LocationPickerModal";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ClientStackParamList } from "../navigation/RootNavigator";
 
@@ -25,21 +27,25 @@ export default function HomeScreen({ navigation }: Props) {
   const { displayName } = useAuth();
   const [activeCategory, setActiveCategory] = useState<Category | "All">("All");
   const [search, setSearch] = useState("");
+  const [suburb, setSuburb] = useState<Suburb>(NEWCASTLE_SUBURBS[0]);
+  const [locationPickerVisible, setLocationPickerVisible] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Refetch every time this screen comes into focus (not just on first mount) —
-  // so a slot that just filled up (here or from another customer) disappears as
-  // soon as you come back to Discover, instead of lingering from a stale fetch.
+  // Refetch every time this screen comes into focus (not just on first mount), and
+  // whenever the selected suburb changes — the backend sorts by distance from
+  // whichever suburb is picked, closest first.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       setLoading(true);
       setError(null);
 
+      const params = new URLSearchParams({ lat: String(suburb.lat), lng: String(suburb.lng) });
+
       api
-        .get<Listing[]>("/listings")
+        .get<Listing[]>(`/listings?${params.toString()}`)
         .then((data) => {
           if (!cancelled) setListings(data);
         })
@@ -53,9 +59,11 @@ export default function HomeScreen({ navigation }: Props) {
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [suburb])
   );
 
+  // Category/search filtering happens client-side, but the server already sorted
+  // by distance — .filter() preserves that order, so no re-sorting needed here.
   const filtered = useMemo(() => {
     return listings.filter((l) => {
       const matchesCategory = activeCategory === "All" || l.category === activeCategory;
@@ -72,10 +80,11 @@ export default function HomeScreen({ navigation }: Props) {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Hey {displayName ?? "there"} 👋</Text>
-          <View style={styles.locationRow}>
+          <Pressable style={styles.locationRow} onPress={() => setLocationPickerVisible(true)}>
             <Ionicons name="location-sharp" size={14} color={colors.apricotDark} />
-            <Text style={styles.locationText}>Newcastle, NSW</Text>
-          </View>
+            <Text style={styles.locationText}>{suburb.name}, NSW</Text>
+            <Ionicons name="chevron-down" size={13} color={colors.apricotDark} style={{ marginLeft: 2 }} />
+          </Pressable>
         </View>
         <View style={styles.avatar}>
           <Ionicons name="person" size={20} color={colors.white} />
@@ -121,7 +130,9 @@ export default function HomeScreen({ navigation }: Props) {
       ) : (
         <>
           <Text style={styles.sectionTitle}>
-            {loading ? "Loading slots…" : `${filtered.length} slot${filtered.length === 1 ? "" : "s"} open nearby`}
+            {loading
+              ? "Loading slots…"
+              : `${filtered.length} slot${filtered.length === 1 ? "" : "s"} near ${suburb.name}`}
           </Text>
 
           {loading ? (
@@ -147,6 +158,13 @@ export default function HomeScreen({ navigation }: Props) {
           )}
         </>
       )}
+
+      <LocationPickerModal
+        visible={locationPickerVisible}
+        selected={suburb}
+        onSelect={setSuburb}
+        onClose={() => setLocationPickerVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -161,8 +179,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   greeting: { ...typography.heading, fontSize: 20 },
-  locationRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
-  locationText: { ...typography.caption, marginLeft: 4 },
+  locationRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  locationText: { ...typography.caption, marginLeft: 4, fontWeight: "700", color: colors.apricotDark },
   avatar: {
     width: 40,
     height: 40,

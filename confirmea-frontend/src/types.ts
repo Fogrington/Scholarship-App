@@ -1,5 +1,24 @@
 export type Category = "Hair" | "Nails" | "Beauty" | "Waxing" | "Massage";
 
+export interface Suburb {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
+// Fixed list for the location picker — real Newcastle NSW suburbs, not GPS tracking.
+// Coordinates are suburb centroids, matching what the backend uses for businesses.
+export const NEWCASTLE_SUBURBS: Suburb[] = [
+  { name: "Newcastle", lat: -32.9283, lng: 151.7817 },
+  { name: "Cooks Hill", lat: -32.9313, lng: 151.7676 },
+  { name: "Hamilton", lat: -32.926, lng: 151.7407 },
+  { name: "The Junction", lat: -32.9366, lng: 151.7597 },
+  { name: "Lambton", lat: -32.9127, lng: 151.7108 },
+  { name: "Merewether", lat: -32.9459, lng: 151.7508 },
+  { name: "Mayfield", lat: -32.902, lng: 151.7364 },
+  { name: "Wallsend", lat: -32.8987, lng: 151.6702 },
+];
+
 export interface Listing {
   id: number;
   businessId: number;
@@ -13,7 +32,8 @@ export interface Listing {
   capacity: number;
   remainingSpots: number;
   isFull: boolean;
-  rating: number;
+  // Aggregated from real reviews of the business — null until it has at least one.
+  rating: number | null;
   reviews: number;
   distanceKm: number | null;
 }
@@ -59,6 +79,18 @@ export interface BusinessProfile {
   category: string;
   address: string;
   approvedAt: string;
+  rating: number | null;
+  reviewCount: number;
+}
+
+// A completed visit that hasn't been rated yet — prompts the "how was your visit?"
+// modal after login.
+export interface PendingReview {
+  bookingId: number;
+  businessId: number;
+  businessName: string;
+  service: string;
+  slotTime: string;
 }
 
 export interface BusinessListing {

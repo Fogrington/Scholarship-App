@@ -9,7 +9,14 @@ import type { BusinessRow } from "../types.js";
 
 const router = Router();
 
-function serialize(row: BusinessRow & { open_complaints?: number; account_email?: string | null }) {
+function serialize(
+  row: BusinessRow & {
+    open_complaints?: number;
+    account_email?: string | null;
+    avg_rating?: number | null;
+    review_count?: number;
+  }
+) {
   return {
     id: row.id,
     name: row.name,
@@ -18,20 +25,32 @@ function serialize(row: BusinessRow & { open_complaints?: number; account_email?
     approvedAt: row.approved_at,
     ...(row.open_complaints !== undefined ? { openComplaints: row.open_complaints } : {}),
     ...(row.account_email !== undefined ? { accountEmail: row.account_email } : {}),
+    ...(row.avg_rating !== undefined
+      ? { rating: row.avg_rating !== null ? Math.round(row.avg_rating * 10) / 10 : null }
+      : {}),
+    ...(row.review_count !== undefined ? { reviewCount: row.review_count } : {}),
   };
 }
+
+const RATING_SUBQUERIES = `
+  (SELECT AVG(r.rating) FROM reviews r WHERE r.business_id = b.id) AS avg_rating,
+  (SELECT COUNT(*) FROM reviews r WHERE r.business_id = b.id) AS review_count
+`;
 
 // Public — the consumer app's directory of live businesses.
 router.get(
   "/",
   asyncHandler(async (_req, res) => {
-    const rows = db.prepare("SELECT * FROM businesses ORDER BY approved_at DESC").all() as BusinessRow[];
+    const rows = db
+      .prepare(`SELECT b.*, ${RATING_SUBQUERIES} FROM businesses b ORDER BY b.approved_at DESC`)
+      .all() as (BusinessRow & { avg_rating: number | null; review_count: number })[];
     res.json(rows.map(serialize));
   })
 );
 
-// Admin only — same list, plus an open-complaints count and whether a business
-// login already exists (and its email) so the admin panel can offer to create one.
+// Admin only — same list, plus an open-complaints count, a rating, and whether a
+// business login already exists (and its email) so the admin panel can offer to
+// create one.
 router.get(
   "/admin",
   requireAuth,
@@ -41,11 +60,17 @@ router.get(
       .prepare(
         `SELECT b.*,
                 (SELECT COUNT(*) FROM complaints c WHERE c.business_id = b.id AND c.status = 'open') AS open_complaints,
-                (SELECT u.email FROM users u WHERE u.business_id = b.id AND u.role = 'business' LIMIT 1) AS account_email
+                (SELECT u.email FROM users u WHERE u.business_id = b.id AND u.role = 'business' LIMIT 1) AS account_email,
+                ${RATING_SUBQUERIES}
          FROM businesses b
          ORDER BY b.approved_at DESC`
       )
-      .all() as (BusinessRow & { open_complaints: number; account_email: string | null })[];
+      .all() as (BusinessRow & {
+      open_complaints: number;
+      account_email: string | null;
+      avg_rating: number | null;
+      review_count: number;
+    })[];
     res.json(rows.map(serialize));
   })
 );

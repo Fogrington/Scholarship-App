@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, FlatList, StyleSheet, SafeAreaView, Pressable, ActivityIndicator, Alert } from "react-native";
+import { View, Text, FlatList, StyleSheet, SafeAreaView, Pressable, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useAuth } from "../context/AuthContext";
 import { useBusiness } from "../context/BusinessContext";
 import Badge from "../components/Badge";
+import ConfirmModal from "../components/ConfirmModal";
 import { ApiError } from "../api/client";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { BusinessStackParamList } from "../navigation/RootNavigator";
@@ -15,25 +16,22 @@ export default function BusinessSlotsScreen({ navigation }: Props) {
   const { businessName } = useAuth();
   const { listings, loading, error, closeListing } = useBusiness();
   const [closingId, setClosingId] = useState<number | null>(null);
+  const [pending, setPending] = useState<{ id: number; service: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const handleClose = (id: number, service: string) => {
-    Alert.alert("Close this slot?", `"${service}" will stop showing up for customers to book.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Close slot",
-        style: "destructive",
-        onPress: async () => {
-          setClosingId(id);
-          try {
-            await closeListing(id);
-          } catch (err) {
-            Alert.alert("Couldn't close it", err instanceof ApiError ? err.message : "Try again.");
-          } finally {
-            setClosingId(null);
-          }
-        },
-      },
-    ]);
+  const handleConfirmClose = async () => {
+    if (!pending) return;
+    const { id } = pending;
+    setPending(null);
+    setActionError(null);
+    setClosingId(id);
+    try {
+      await closeListing(id);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Couldn't close it. Try again.");
+    } finally {
+      setClosingId(null);
+    }
   };
 
   return (
@@ -47,6 +45,12 @@ export default function BusinessSlotsScreen({ navigation }: Props) {
           <Ionicons name="add" size={22} color={colors.white} />
         </Pressable>
       </View>
+
+      {actionError && (
+        <View style={styles.actionErrorBox}>
+          <Text style={styles.actionErrorText}>{actionError}</Text>
+        </View>
+      )}
 
       {error ? (
         <View style={styles.empty}>
@@ -94,7 +98,7 @@ export default function BusinessSlotsScreen({ navigation }: Props) {
               {item.isActive && (
                 <Pressable
                   style={styles.closeBtn}
-                  onPress={() => handleClose(item.id, item.service)}
+                  onPress={() => setPending({ id: item.id, service: item.service })}
                   disabled={closingId === item.id}
                 >
                   <Text style={styles.closeBtnText}>
@@ -112,6 +116,16 @@ export default function BusinessSlotsScreen({ navigation }: Props) {
           }
         />
       )}
+
+      <ConfirmModal
+        visible={pending !== null}
+        title="Close this slot?"
+        message={pending ? `"${pending.service}" will stop showing up for customers to book.` : ""}
+        confirmLabel="Close slot"
+        destructive
+        onCancel={() => setPending(null)}
+        onConfirm={handleConfirmClose}
+      />
     </SafeAreaView>
   );
 }
@@ -136,6 +150,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  actionErrorBox: {
+    backgroundColor: "#FBEAE6",
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  actionErrorText: { color: colors.warning, fontSize: 12.5, fontWeight: "600" },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
   card: {
     backgroundColor: colors.white,

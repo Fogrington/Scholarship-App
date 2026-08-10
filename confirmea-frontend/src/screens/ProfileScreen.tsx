@@ -1,19 +1,14 @@
-import React from "react";
-import { View, Text, StyleSheet, SafeAreaView, Pressable, Alert } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, SafeAreaView, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useAuth } from "../context/AuthContext";
+import ConfirmModal from "../components/ConfirmModal";
 
 export default function ProfileScreen() {
   const { displayName, role, businessName, logout } = useAuth();
   const isBusiness = role === "business";
-
-  const confirmLogout = () => {
-    Alert.alert("Log out?", "You'll need to log back in to continue.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Log out", style: "destructive", onPress: () => logout() },
-    ]);
-  };
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -54,10 +49,23 @@ export default function ProfileScreen() {
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </View>
 
-      <Pressable style={styles.logoutRow} onPress={confirmLogout}>
+      <Pressable style={styles.logoutRow} onPress={() => setConfirmVisible(true)}>
         <Ionicons name="log-out-outline" size={20} color={colors.warning} />
         <Text style={styles.logoutLabel}>Log out</Text>
       </Pressable>
+
+      <ConfirmModal
+        visible={confirmVisible}
+        title="Log out?"
+        message="You'll need to log back in to continue."
+        confirmLabel="Log out"
+        destructive
+        onCancel={() => setConfirmVisible(false)}
+        onConfirm={() => {
+          setConfirmVisible(false);
+          logout();
+        }}
+      />
     </SafeAreaView>
   );
 }

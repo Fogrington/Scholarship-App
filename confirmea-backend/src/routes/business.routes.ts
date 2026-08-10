@@ -30,12 +30,21 @@ router.get(
       | BusinessRow
       | undefined;
     if (!business) throw new ApiError(404, "Business not found.");
+
+    const { avg_rating, review_count } = db
+      .prepare(
+        `SELECT AVG(rating) AS avg_rating, COUNT(*) AS review_count FROM reviews WHERE business_id = ?`
+      )
+      .get(businessId) as { avg_rating: number | null; review_count: number };
+
     res.json({
       id: business.id,
       name: business.name,
       category: business.category,
       address: business.address,
       approvedAt: business.approved_at,
+      rating: avg_rating !== null ? Math.round(avg_rating * 10) / 10 : null,
+      reviewCount: review_count,
     });
   })
 );

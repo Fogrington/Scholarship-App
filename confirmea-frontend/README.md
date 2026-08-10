@@ -47,7 +47,9 @@ Scan the QR code with Expo Go, same as always.
 ## Logging in as each account type
 
 - **Customer:** `fletch@example.com` / `password123`, or tap "Sign up" to register a
-  new one (self-registration always creates a customer account).
+  new one (self-registration always creates a customer account). Fletch has a
+  completed, unreviewed booking seeded — logging in as him triggers the "rate your
+  visit" star prompt immediately, a ready demo of that flow.
 - **Business:** `barebeautybar@confirmea.app` / `business123`, or
   `saltandco@confirmea.app` / `business123`. Business accounts aren't self-serve —
   they're created by an admin (via the backend's `POST /businesses/:id/account`, seeded
@@ -61,12 +63,26 @@ Scan the QR code with Expo Go, same as always.
   Refetches every time you come back to this screen (not just on first load), so a
   slot that just filled up — here or from another customer — disappears instead of
   lingering from a stale fetch. Slots with only 1-2 spots left on a multi-spot listing
-  show a "spots left" callout.
+  show a "spots left" callout. Ratings are real now — aggregated live from actual
+  reviews of the business, not static seed numbers. A business with no reviews yet
+  shows "New — no reviews yet" instead of a fake star count.
+- **Location bias**: tap the suburb name under the greeting ("Newcastle, NSW ▾") to
+  pick from 8 real Newcastle-area suburbs. This isn't live GPS — it's a manual
+  location picker — but the distances and closest-first sorting behind it are real:
+  the backend computes actual haversine distance between the selected suburb's
+  coordinates and each business's, and sorts accordingly. Picking a suburb refetches
+  Discover immediately.
 - **Booking flow**: reserve a slot for real via `POST /bookings`. Payment still happens
   in person. If two people go for the last spot on a slot at the same moment, the
   server (not just the UI) decides who gets it — the other gets a clear "just filled
   up" message instead of a phantom booking.
 - **Bookings tab**: `GET /bookings/mine`.
+- **Review prompt**: after a business marks you arrived, your next login shows a
+  lightweight modal — "How was your visit?" with five tappable stars. One review per
+  completed booking; the backend rejects a second attempt. Tapping "Not now" dismisses
+  it for that session only — you'll be asked again next time you log in. This modal
+  lives above the whole app (a real `Modal`, not a screen), so it shows up regardless
+  of which tab you land on after login.
 
 ### Business side
 - **Slots tab**: every open slot this business has posted, with a live "X of Y spots
@@ -87,6 +103,16 @@ Every business-side write is scoped server-side to the logged-in business's own 
 one business can never see or touch another's bookings or listings, even by guessing
 IDs. Verified directly against the API before this was wired into the UI.
 
+### A note on confirmations
+
+Logout, "close this slot", and "mark arrived" all use a custom `ConfirmModal`
+component now, not `Alert.alert` with multiple buttons. `Alert.alert`'s multi-button
+behavior doesn't translate reliably to React Native Web — it falls back to
+`window.confirm()`, which doesn't map cleanly onto per-button callbacks, and was the
+cause of "the logout button doesn't work" on the web preview. `ConfirmModal` is a real
+React Native `Modal`, so it behaves identically on web, iOS, and Android since it's
+our own component rather than a platform-specific bridge.
+
 Color scheme is apricot (#F2A65A) and black (#1A1A1A) on a warm cream background, per
 Julia's whimsical/friendly styling preference — unchanged.
 
@@ -96,7 +122,10 @@ Julia's whimsical/friendly styling preference — unchanged.
 src/
   api/           config.ts (backend URL — edit this), client.ts (fetch wrapper)
   context/       AuthContext (login/session, now role-aware), BookingsContext
-                 (customer bookings), BusinessContext (business listings + bookings)
+                 (customer bookings), BusinessContext (business listings + bookings),
+                 ReviewsContext (pending reviews + submitting a rating)
+  components/    ServiceCard, CategoryPill, Badge, ReviewPromptModal, ConfirmModal,
+                 LocationPickerModal
   screens/       LoginScreen, HomeScreen, ListingDetailScreen, BookingsScreen,
                  ProfileScreen (shared), BusinessSlotsScreen, AddSlotScreen,
                  BusinessBookingsScreen
@@ -108,6 +137,11 @@ src/
 
 ## Next steps
 
+- Let a customer see or edit a review they've already left (currently write-once,
+  no way to view your own review history in the app)
+- Show the business's rating on their own Profile tab — the backend's
+  `GET /business/profile` already returns `rating`/`reviewCount`, just not surfaced
+  in the UI yet
 - Real geolocation instead of the seeded `distanceKm` values
 - Push notifications — e.g. notify a business when a slot gets booked, or a customer
   when their business marks them arrived

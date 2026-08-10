@@ -78,7 +78,10 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
             <MetaRow icon="navigate-outline" label={`${listing.distanceKm} km away`} />
           )}
           <MetaRow icon="time-outline" label={`Slot: ${listing.slotTime}`} />
-          <MetaRow icon="star" label={`${listing.rating} (${listing.reviews} reviews)`} />
+          <MetaRow
+            icon="star"
+            label={listing.rating !== null ? `${listing.rating} (${listing.reviews} reviews)` : "New — no reviews yet"}
+          />
           {listing.capacity > 1 && (
             <MetaRow
               icon="people-outline"

@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS businesses (
   name TEXT NOT NULL,
   category TEXT NOT NULL,
   address TEXT NOT NULL,
+  -- Used to compute real distance from a customer's selected suburb. Nullable so a
+  -- business can exist before its location is known.
+  latitude REAL,
+  longitude REAL,
   approved_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -83,7 +87,19 @@ CREATE TABLE IF NOT EXISTS complaints (
   resolved_at TEXT
 );
 
+-- A customer's 1-5 star review of a completed booking. One review per booking —
+-- you can only rate a visit once, and only after the business marks you arrived.
+CREATE TABLE IF NOT EXISTS reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL UNIQUE REFERENCES bookings(id),
+  business_id INTEGER NOT NULL REFERENCES businesses(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_listings_business ON listings(business_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_listing ON bookings(listing_id);
 CREATE INDEX IF NOT EXISTS idx_complaints_business ON complaints(business_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_business ON reviews(business_id);

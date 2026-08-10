@@ -37,6 +37,8 @@ export interface BusinessRow {
   name: string;
   category: string;
   address: string;
+  latitude: number | null;
+  longitude: number | null;
   approved_at: string;
 }
 
@@ -79,6 +81,15 @@ export interface ComplaintRow {
   resolution: string;
   submitted_at: string;
   resolved_at: string | null;
+}
+
+export interface ReviewRow {
+  id: number;
+  booking_id: number;
+  business_id: number;
+  user_id: number;
+  rating: number;
+  created_at: string;
 }
 
 export interface AuthTokenPayload {

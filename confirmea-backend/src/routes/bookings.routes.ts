@@ -102,4 +102,84 @@ router.get(
   })
 );
 
+// Customer only — completed bookings that haven't been reviewed yet. The mobile
+// app checks this after login and prompts for a star rating if anything's pending.
+router.get(
+  "/pending-review",
+  requireAuth,
+  requireRole("customer"),
+  asyncHandler(async (req, res) => {
+    const rows = db
+      .prepare(
+        `SELECT bk.id AS booking_id, l.business_id, b.name AS business_name,
+                l.service, l.slot_time
+         FROM bookings bk
+         JOIN listings l ON l.id = bk.listing_id
+         JOIN businesses b ON b.id = l.business_id
+         LEFT JOIN reviews r ON r.booking_id = bk.id
+         WHERE bk.user_id = ? AND bk.status = 'Completed' AND r.id IS NULL
+         ORDER BY bk.created_at ASC`
+      )
+      .all(req.user!.sub) as {
+      booking_id: number;
+      business_id: number;
+      business_name: string;
+      service: string;
+      slot_time: string;
+    }[];
+
+    res.json(
+      rows.map((row) => ({
+        bookingId: row.booking_id,
+        businessId: row.business_id,
+        businessName: row.business_name,
+        service: row.service,
+        slotTime: row.slot_time,
+      }))
+    );
+  })
+);
+
+// Customer only — rate a completed visit. One review per booking, enforced by the
+// reviews table's UNIQUE constraint on booking_id as well as this explicit check.
+const reviewSchema = z.object({ rating: z.number().int().min(1).max(5) });
+
+router.post(
+  "/:id/review",
+  requireAuth,
+  requireRole("customer"),
+  asyncHandler(async (req, res) => {
+    const { rating } = reviewSchema.parse(req.body);
+
+    const booking = db
+      .prepare(
+        `SELECT bk.*, l.business_id AS listing_business_id
+         FROM bookings bk
+         JOIN listings l ON l.id = bk.listing_id
+         WHERE bk.id = ?`
+      )
+      .get(req.params.id) as (BookingRow & { listing_business_id: number }) | undefined;
+
+    if (!booking) throw new ApiError(404, "Booking not found.");
+    if (booking.user_id !== req.user!.sub) throw new ApiError(403, "That's not your booking.");
+    if (booking.status !== "Completed") {
+      throw new ApiError(400, "You can only review a visit after it's been marked completed.");
+    }
+
+    const existing = db.prepare("SELECT id FROM reviews WHERE booking_id = ?").get(booking.id);
+    if (existing) throw new ApiError(409, "You've already reviewed this visit.");
+
+    const result = db
+      .prepare("INSERT INTO reviews (booking_id, business_id, user_id, rating) VALUES (?, ?, ?, ?)")
+      .run(booking.id, booking.listing_business_id, req.user!.sub, rating);
+
+    res.status(201).json({
+      id: result.lastInsertRowid,
+      bookingId: booking.id,
+      businessId: booking.listing_business_id,
+      rating,
+    });
+  })
+);
+
 export default router;
