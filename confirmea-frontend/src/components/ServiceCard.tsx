@@ -1,8 +1,9 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, shadow, typography } from "../theme/theme";
 import { Listing } from "../types";
+import { getCategoryIllustration } from "../data/categoryIllustrations";
 
 type Props = {
   listing: Listing;
@@ -17,7 +18,11 @@ export default function ServiceCard({ listing, onPress }: Props) {
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.thumb}>
-        <Ionicons name="cut-outline" size={26} color={colors.apricotDark} />
+        <Image
+          source={getCategoryIllustration(listing.category)}
+          style={styles.thumbImage}
+          resizeMode="cover"
+        />
       </View>
 
       <View style={styles.info}>
@@ -99,6 +104,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: spacing.md,
+    overflow: "hidden",
+  },
+  thumbImage: {
+    width: "100%",
+    height: "100%",
   },
   info: {
     flex: 1,

@@ -5,6 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../middleware/errorHandler.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { hashPassword } from "../utils/password.js";
+import { haversineKm } from "../utils/geo.js";
 import type { BusinessRow } from "../types.js";
 
 const router = Router();
@@ -15,6 +16,8 @@ function serialize(
     account_email?: string | null;
     avg_rating?: number | null;
     review_count?: number;
+    open_offers?: number;
+    distanceKm?: number | null;
   }
 ) {
   return {
@@ -22,6 +25,8 @@ function serialize(
     name: row.name,
     category: row.category,
     address: row.address,
+    latitude: row.latitude,
+    longitude: row.longitude,
     approvedAt: row.approved_at,
     ...(row.open_complaints !== undefined ? { openComplaints: row.open_complaints } : {}),
     ...(row.account_email !== undefined ? { accountEmail: row.account_email } : {}),
@@ -29,6 +34,8 @@ function serialize(
       ? { rating: row.avg_rating !== null ? Math.round(row.avg_rating * 10) / 10 : null }
       : {}),
     ...(row.review_count !== undefined ? { reviewCount: row.review_count } : {}),
+    ...(row.open_offers !== undefined ? { openOffers: row.open_offers } : {}),
+    ...(row.distanceKm !== undefined ? { distanceKm: row.distanceKm } : {}),
   };
 }
 
@@ -36,6 +43,23 @@ const RATING_SUBQUERIES = `
   (SELECT AVG(r.rating) FROM reviews r WHERE r.business_id = b.id) AS avg_rating,
   (SELECT COUNT(*) FROM reviews r WHERE r.business_id = b.id) AS review_count
 `;
+
+// How many of this business's listings are currently open (active) and not full.
+const OPEN_OFFERS_SUBQUERY = `
+  (SELECT COUNT(*) FROM listings l
+   WHERE l.business_id = b.id AND l.is_active = 1
+     AND l.capacity > (SELECT COUNT(*) FROM bookings bk WHERE bk.listing_id = l.id AND bk.status = 'Upcoming')
+  ) AS open_offers
+`;
+
+function parseOrigin(query: Record<string, unknown>): { lat?: number; lng?: number } {
+  const lat = query.lat !== undefined ? Number(query.lat) : undefined;
+  const lng = query.lng !== undefined ? Number(query.lng) : undefined;
+  if (lat !== undefined && !Number.isNaN(lat) && lng !== undefined && !Number.isNaN(lng)) {
+    return { lat, lng };
+  }
+  return {};
+}
 
 // Public — the consumer app's directory of live businesses.
 router.get(
@@ -45,6 +69,62 @@ router.get(
       .prepare(`SELECT b.*, ${RATING_SUBQUERIES} FROM businesses b ORDER BY b.approved_at DESC`)
       .all() as (BusinessRow & { avg_rating: number | null; review_count: number })[];
     res.json(rows.map(serialize));
+  })
+);
+
+// Public — businesses that currently have at least one open, bookable slot. This is
+// what the Discover screen and the Explore map both use — browsing is business-first,
+// not listing-first, since a business can have several open offers at once.
+// Optional ?category=Hair, ?search=..., and ?lat=&lng= for distance + closest-first sort.
+router.get(
+  "/with-offers",
+  asyncHandler(async (req, res) => {
+    const { category, search } = req.query as { category?: string; search?: string };
+    const { lat, lng } = parseOrigin(req.query as Record<string, unknown>);
+
+    let innerQuery = `
+      SELECT b.*, ${RATING_SUBQUERIES}, ${OPEN_OFFERS_SUBQUERY}
+      FROM businesses b
+      WHERE 1 = 1
+    `;
+    const params: unknown[] = [];
+
+    if (category && category !== "All") {
+      innerQuery += " AND b.category = ?";
+      params.push(category);
+    }
+    if (search) {
+      innerQuery += " AND b.name LIKE ?";
+      params.push(`%${search}%`);
+    }
+
+    // Wrapped so we can filter on the computed open_offers count — SQLite won't let
+    // a WHERE clause reference a sibling SELECT alias directly.
+    const query = `SELECT * FROM (${innerQuery}) sub WHERE sub.open_offers > 0`;
+
+    const rows = db.prepare(query).all(...params) as (BusinessRow & {
+      avg_rating: number | null;
+      review_count: number;
+      open_offers: number;
+    })[];
+
+    const withDistance = rows.map((row) => {
+      const distanceKm =
+        lat !== undefined && lng !== undefined && row.latitude !== null && row.longitude !== null
+          ? haversineKm(lat, lng, row.latitude, row.longitude)
+          : null;
+      return { row, distanceKm };
+    });
+
+    if (lat !== undefined && lng !== undefined) {
+      withDistance.sort((a, b) => {
+        if (a.distanceKm === null) return 1;
+        if (b.distanceKm === null) return -1;
+        return a.distanceKm - b.distanceKm;
+      });
+    }
+
+    res.json(withDistance.map(({ row, distanceKm }) => serialize({ ...row, distanceKm })));
   })
 );
 

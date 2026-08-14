@@ -1,17 +1,27 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, SafeAreaView, Pressable, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, SafeAreaView, Pressable, ScrollView, Alert, Image } from "react-native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import Badge from "../components/Badge";
 import { useBookings } from "../context/BookingsContext";
 import { ApiError } from "../api/client";
-import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { getCategoryIllustration } from "../data/categoryIllustrations";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { ClientStackParamList, ClientTabParamList } from "../navigation/RootNavigator";
+import type { ClientTabParamList } from "../navigation/RootNavigator";
+import type { Listing } from "../types";
 
-type Props = NativeStackScreenProps<ClientStackParamList, "ListingDetail">;
+// Mounted in both the Home stack and the Explore stack (same shape, different
+// sibling screens) — hooks instead of typed screen props let this work in either,
+// same pattern as BusinessDetailScreen.
+type LocalParamList = {
+  ListingDetail: { listing: Listing };
+};
 
-export default function ListingDetailScreen({ route, navigation }: Props) {
+export default function ListingDetailScreen() {
+  const route = useRoute<RouteProp<LocalParamList, "ListingDetail">>();
+  const navigation = useNavigation<NativeStackNavigationProp<LocalParamList>>();
   const { listing } = route.params;
   const { addBooking, isBooked } = useBookings();
   const [confirmed, setConfirmed] = useState(false);
@@ -60,7 +70,11 @@ export default function ListingDetailScreen({ route, navigation }: Props) {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.hero}>
-          <Ionicons name="cut-outline" size={40} color={colors.apricotDark} />
+          <Image
+            source={getCategoryIllustration(listing.category)}
+            style={styles.heroImage}
+            resizeMode="cover"
+          />
         </View>
 
         <View style={styles.rowBetween}>
@@ -163,6 +177,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.lg,
+    overflow: "hidden",
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
   },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   service: { ...typography.subheading, marginTop: 4, marginBottom: spacing.md },

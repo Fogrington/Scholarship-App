@@ -73,13 +73,17 @@ function parseOrigin(query: Record<string, unknown>): { lat?: number; lng?: numb
   return {};
 }
 
-// Public — browse listings, optionally filtered by category or a text search, and
-// optionally sorted by distance from a customer-selected suburb (?lat=&lng=).
-// Only shows slots that are both open (is_active) and not yet full.
+// Public — browse listings, optionally filtered by category, business, or a text
+// search, and optionally sorted by distance from a customer-selected suburb
+// (?lat=&lng=). Only shows slots that are both open (is_active) and not yet full.
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    const { category, search } = req.query as { category?: string; search?: string };
+    const { category, search, businessId } = req.query as {
+      category?: string;
+      search?: string;
+      businessId?: string;
+    };
     const { lat, lng } = parseOrigin(req.query as Record<string, unknown>);
 
     let innerQuery = `
@@ -93,6 +97,10 @@ router.get(
     if (category && category !== "All") {
       innerQuery += " AND l.category = ?";
       params.push(category);
+    }
+    if (businessId) {
+      innerQuery += " AND l.business_id = ?";
+      params.push(Number(businessId));
     }
     if (search) {
       innerQuery += " AND (b.name LIKE ? OR l.service LIKE ?)";

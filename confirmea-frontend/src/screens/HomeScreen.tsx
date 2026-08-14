@@ -12,11 +12,12 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius } from "../theme/theme";
-import { categories, NEWCASTLE_SUBURBS, type Category, type Listing, type Suburb } from "../types";
+import { categories, type BusinessWithOffers, type Category } from "../types";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { useLocationSuburb } from "../context/LocationContext";
 import CategoryPill from "../components/CategoryPill";
-import ServiceCard from "../components/ServiceCard";
+import BusinessCard from "../components/BusinessCard";
 import LocationPickerModal from "../components/LocationPickerModal";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ClientStackParamList } from "../navigation/RootNavigator";
@@ -25,11 +26,11 @@ type Props = NativeStackScreenProps<ClientStackParamList, "Home">;
 
 export default function HomeScreen({ navigation }: Props) {
   const { displayName } = useAuth();
+  const { suburb, setSuburb } = useLocationSuburb();
   const [activeCategory, setActiveCategory] = useState<Category | "All">("All");
   const [search, setSearch] = useState("");
-  const [suburb, setSuburb] = useState<Suburb>(NEWCASTLE_SUBURBS[0]);
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
-  const [listings, setListings] = useState<Listing[]>([]);
+  const [businesses, setBusinesses] = useState<BusinessWithOffers[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,12 +46,12 @@ export default function HomeScreen({ navigation }: Props) {
       const params = new URLSearchParams({ lat: String(suburb.lat), lng: String(suburb.lng) });
 
       api
-        .get<Listing[]>(`/listings?${params.toString()}`)
+        .get<BusinessWithOffers[]>(`/businesses/with-offers?${params.toString()}`)
         .then((data) => {
-          if (!cancelled) setListings(data);
+          if (!cancelled) setBusinesses(data);
         })
         .catch((err) => {
-          if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load nearby slots.");
+          if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load nearby businesses.");
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -62,18 +63,17 @@ export default function HomeScreen({ navigation }: Props) {
     }, [suburb])
   );
 
-  // Category/search filtering happens client-side, but the server already sorted
-  // by distance — .filter() preserves that order, so no re-sorting needed here.
+  // Category/search filtering happens client-side against the business's own
+  // specialty, not any one listing's category — a business shows up once even if
+  // it has several open offers. The server already sorted by distance, and
+  // .filter() preserves that order.
   const filtered = useMemo(() => {
-    return listings.filter((l) => {
-      const matchesCategory = activeCategory === "All" || l.category === activeCategory;
-      const matchesSearch =
-        search.trim().length === 0 ||
-        l.businessName.toLowerCase().includes(search.toLowerCase()) ||
-        l.service.toLowerCase().includes(search.toLowerCase());
+    return businesses.filter((b) => {
+      const matchesCategory = activeCategory === "All" || b.category === activeCategory;
+      const matchesSearch = search.trim().length === 0 || b.name.toLowerCase().includes(search.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [listings, activeCategory, search]);
+  }, [businesses, activeCategory, search]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -94,7 +94,7 @@ export default function HomeScreen({ navigation }: Props) {
       <View style={styles.searchBar}>
         <Ionicons name="search-outline" size={18} color={colors.textMuted} />
         <TextInput
-          placeholder="Search salons or services"
+          placeholder="Search businesses"
           placeholderTextColor={colors.textMuted}
           style={styles.searchInput}
           value={search}
@@ -131,8 +131,8 @@ export default function HomeScreen({ navigation }: Props) {
         <>
           <Text style={styles.sectionTitle}>
             {loading
-              ? "Loading slots…"
-              : `${filtered.length} slot${filtered.length === 1 ? "" : "s"} near ${suburb.name}`}
+              ? "Loading businesses…"
+              : `${filtered.length} business${filtered.length === 1 ? "" : "es"} near ${suburb.name}`}
           </Text>
 
           {loading ? (
@@ -143,15 +143,15 @@ export default function HomeScreen({ navigation }: Props) {
               keyExtractor={(item) => String(item.id)}
               contentContainerStyle={styles.listContent}
               renderItem={({ item }) => (
-                <ServiceCard
-                  listing={item}
-                  onPress={() => navigation.navigate("ListingDetail", { listing: item })}
+                <BusinessCard
+                  business={item}
+                  onPress={() => navigation.navigate("BusinessDetail", { businessId: item.id })}
                 />
               )}
               ListEmptyComponent={
                 <View style={styles.empty}>
-                  <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
-                  <Text style={styles.emptyText}>No open slots match that search yet.</Text>
+                  <Ionicons name="storefront-outline" size={28} color={colors.textMuted} />
+                  <Text style={styles.emptyText}>No businesses match that search yet.</Text>
                 </View>
               }
             />

@@ -48,6 +48,24 @@ export const categories: { key: Category; icon: string }[] = [
   { key: "Massage", icon: "body-outline" },
 ];
 
+// A business that currently has at least one open, bookable slot — this is what
+// Discover and the Explore map browse (business-first), from
+// GET /businesses/with-offers. Filtering by category means the business's
+// specialty, not any one listing's category — a business only shows up once even
+// if it has several open offers across different services.
+export interface BusinessWithOffers {
+  id: number;
+  name: string;
+  category: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  rating: number | null;
+  reviewCount: number;
+  openOffers: number;
+  distanceKm: number | null;
+}
+
 export type BookingStatus = "Upcoming" | "Completed" | "Cancelled";
 
 export interface BookingListingSummary {

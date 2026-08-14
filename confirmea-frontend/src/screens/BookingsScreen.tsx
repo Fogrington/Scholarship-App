@@ -1,12 +1,16 @@
 import React from "react";
-import { View, Text, FlatList, StyleSheet, SafeAreaView, ActivityIndicator } from "react-native";
+import { View, Text, FlatList, StyleSheet, SafeAreaView, ActivityIndicator, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useBookings } from "../context/BookingsContext";
 import Badge from "../components/Badge";
+import type { ClientTabParamList } from "../navigation/RootNavigator";
 
 export default function BookingsScreen() {
   const { bookings, loading, error } = useBookings();
+  const navigation = useNavigation<BottomTabNavigationProp<ClientTabParamList>>();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -56,9 +60,18 @@ export default function BookingsScreen() {
             );
           }}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
-              <Text style={styles.emptyText}>No bookings yet — go grab a last-minute slot!</Text>
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="calendar-outline" size={30} color={colors.apricotDark} />
+              </View>
+              <Text style={styles.emptyTitle}>No bookings yet</Text>
+              <Text style={styles.emptyText}>
+                Last-minute slots near you come and go fast — take a look at what's open right now.
+              </Text>
+              <Pressable style={styles.emptyCta} onPress={() => navigation.navigate("HomeTab")}>
+                <Ionicons name="search" size={17} color={colors.white} />
+                <Text style={styles.emptyCtaText}>Browse open slots</Text>
+              </Pressable>
             </View>
           }
         />
@@ -95,4 +108,31 @@ const styles = StyleSheet.create({
   payAmount: { fontSize: 16, fontWeight: "800", color: colors.black },
   empty: { alignItems: "center", marginTop: spacing.xl, opacity: 0.6, paddingHorizontal: spacing.lg },
   emptyText: { ...typography.body, marginTop: spacing.sm, textAlign: "center" },
+  emptyState: {
+    alignItems: "center",
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.pill,
+    backgroundColor: colors.apricotLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  emptyTitle: { ...typography.heading, fontSize: 17, textAlign: "center" },
+  emptyCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.black,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.lg,
+    ...shadow.card,
+  },
+  emptyCtaText: { color: colors.white, fontWeight: "800", fontSize: 14, marginLeft: 8 },
 });

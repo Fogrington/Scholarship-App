@@ -10,6 +10,8 @@ import type { Listing } from "../types";
 
 import LoginScreen from "../screens/LoginScreen";
 import HomeScreen from "../screens/HomeScreen";
+import ExploreScreen from "../screens/ExploreScreen";
+import BusinessDetailScreen from "../screens/BusinessDetailScreen";
 import ListingDetailScreen from "../screens/ListingDetailScreen";
 import BookingsScreen from "../screens/BookingsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
@@ -18,13 +20,24 @@ import AddSlotScreen from "../screens/AddSlotScreen";
 import BusinessBookingsScreen from "../screens/BusinessBookingsScreen";
 
 // ---- Customer navigation ----
+// Both the Home (Discover) tab and the Explore (map) tab can drill into a
+// business, then into a specific offer — each tab keeps its own back-stack, so
+// they share the same screen shapes rather than the same navigator instance.
 export type ClientStackParamList = {
   Home: undefined;
+  BusinessDetail: { businessId: number };
+  ListingDetail: { listing: Listing };
+};
+
+export type ExploreStackParamList = {
+  Map: undefined;
+  BusinessDetail: { businessId: number };
   ListingDetail: { listing: Listing };
 };
 
 export type ClientTabParamList = {
   HomeTab: undefined;
+  ExploreTab: undefined;
   BookingsTab: undefined;
   ProfileTab: undefined;
 };
@@ -48,6 +61,7 @@ export type RootStackParamList = {
 };
 
 const ClientStack = createNativeStackNavigator<ClientStackParamList>();
+const ExploreStack = createNativeStackNavigator<ExploreStackParamList>();
 const ClientTab = createBottomTabNavigator<ClientTabParamList>();
 const BusinessStack = createNativeStackNavigator<BusinessStackParamList>();
 const BusinessTab = createBottomTabNavigator<BusinessTabParamList>();
@@ -71,8 +85,19 @@ function HomeStackNavigator() {
   return (
     <ClientStack.Navigator screenOptions={{ headerShown: false }}>
       <ClientStack.Screen name="Home" component={HomeScreen} />
+      <ClientStack.Screen name="BusinessDetail" component={BusinessDetailScreen} />
       <ClientStack.Screen name="ListingDetail" component={ListingDetailScreen} />
     </ClientStack.Navigator>
+  );
+}
+
+function ExploreStackNavigator() {
+  return (
+    <ExploreStack.Navigator screenOptions={{ headerShown: false }}>
+      <ExploreStack.Screen name="Map" component={ExploreScreen} />
+      <ExploreStack.Screen name="BusinessDetail" component={BusinessDetailScreen} />
+      <ExploreStack.Screen name="ListingDetail" component={ListingDetailScreen} />
+    </ExploreStack.Navigator>
   );
 }
 
@@ -84,6 +109,7 @@ function ClientTabs() {
         tabBarIcon: ({ color, size }) => {
           const icons: Record<keyof ClientTabParamList, keyof typeof Ionicons.glyphMap> = {
             HomeTab: "home",
+            ExploreTab: "map",
             BookingsTab: "calendar",
             ProfileTab: "person",
           };
@@ -92,6 +118,7 @@ function ClientTabs() {
       })}
     >
       <ClientTab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Discover" }} />
+      <ClientTab.Screen name="ExploreTab" component={ExploreStackNavigator} options={{ title: "Explore" }} />
       <ClientTab.Screen name="BookingsTab" component={BookingsScreen} options={{ title: "Bookings" }} />
       <ClientTab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: "Profile" }} />
     </ClientTab.Navigator>
@@ -139,8 +166,6 @@ export default function RootNavigator() {
   const { isLoggedIn, initializing, role } = useAuth();
 
   if (initializing) {
-    // Checking AsyncStorage for a saved session — avoids a flash of the login
-    // screen before we know whether the user is already logged in.
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.black }}>
         <ActivityIndicator color={colors.apricot} size="large" />

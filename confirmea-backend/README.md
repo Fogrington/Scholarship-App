@@ -75,14 +75,15 @@ seeded, business accounts via the admin-only `POST /businesses/:id/account`.
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | GET | `/businesses` | — | Public directory (consumer app). Includes `rating` (null until the business has at least one review) and `reviewCount`, aggregated live from the `reviews` table. |
-| GET | `/businesses/admin` | admin | Same, plus an `openComplaints` count per business |
+| GET | `/businesses/with-offers` | — | Businesses that currently have at least one open, bookable listing — this is what Discover and the Explore map actually browse (business-first, not listing-first). Optional `?category=Hair` (filters by the *business's* own specialty, not any one listing's category), `?search=...`, and `?lat=&lng=` for a real `distanceKm` and closest-first sort. Each result includes `openOffers`, the count of currently bookable listings. |
+| GET | `/businesses/admin` | admin | Same as `/businesses`, plus an `openComplaints` count per business |
 | GET | `/businesses/:id` | — | One business |
 | POST | `/businesses/:id/account` | admin | `{ email, password, name }` — creates a business login tied to this business |
 
 ### Listings (bookable slots)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/listings` | — | `?category=Hair`, `?search=...`, and/or `?lat=&lng=`. Only returns slots that are active **and** not yet full. When `lat`/`lng` are given (the mobile app always sends the selected suburb's coordinates), each result gets a real `distanceKm` computed against the business's coordinates, and results are sorted closest-first. Without them, `distanceKm` is `null` and order is by creation date. |
+| GET | `/listings` | — | `?category=Hair`, `?businessId=3` (all of one business's open offers — this is what the business detail screen uses), `?search=...`, and/or `?lat=&lng=`. Only returns slots that are active **and** not yet full. When `lat`/`lng` are given, each result gets a real `distanceKm` computed against the business's coordinates, and results are sorted closest-first. |
 | GET | `/listings/:id` | — | One listing, regardless of fullness — includes `capacity`, `remainingSpots`, `isFull`, and the same optional `?lat=&lng=` distance behavior |
 | POST | `/listings` | admin | Create a listing under any business, `capacity` optional (defaults to 1) |
 

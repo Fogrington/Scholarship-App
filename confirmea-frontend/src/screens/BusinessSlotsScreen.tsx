@@ -109,9 +109,18 @@ export default function BusinessSlotsScreen({ navigation }: Props) {
             </View>
           )}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
-              <Text style={styles.emptyText}>No open slots yet — add one to get started.</Text>
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="calendar-outline" size={30} color={colors.apricotDark} />
+              </View>
+              <Text style={styles.emptyTitle}>No open slots yet</Text>
+              <Text style={styles.emptyText}>
+                Post a last-minute opening and it'll show up for nearby customers right away.
+              </Text>
+              <Pressable style={styles.emptyCta} onPress={() => navigation.navigate("AddSlot")}>
+                <Ionicons name="add" size={18} color={colors.white} />
+                <Text style={styles.emptyCtaText}>Post your first slot</Text>
+              </Pressable>
             </View>
           }
         />
@@ -179,4 +188,31 @@ const styles = StyleSheet.create({
   closeBtnText: { color: colors.warning, fontWeight: "700", fontSize: 12.5 },
   empty: { alignItems: "center", marginTop: spacing.xl, opacity: 0.6, paddingHorizontal: spacing.lg },
   emptyText: { ...typography.body, marginTop: spacing.sm, textAlign: "center" },
+  emptyState: {
+    alignItems: "center",
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.pill,
+    backgroundColor: colors.apricotLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  emptyTitle: { ...typography.heading, fontSize: 17, textAlign: "center" },
+  emptyCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.black,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.lg,
+    ...shadow.card,
+  },
+  emptyCtaText: { color: colors.white, fontWeight: "800", fontSize: 14, marginLeft: 8 },
 });
