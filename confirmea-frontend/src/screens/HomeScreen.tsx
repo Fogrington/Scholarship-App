@@ -108,7 +108,7 @@ export default function HomeScreen({ navigation }: Props) {
         data={["All", ...categories.map((c) => c.key)]}
         keyExtractor={(item) => item}
         style={styles.pillRow}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg }}
+        contentContainerStyle={styles.pillRowContent}
         renderItem={({ item }) => {
           const cat = categories.find((c) => c.key === item);
           return (
@@ -202,7 +202,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   searchInput: { marginLeft: 8, flex: 1, color: colors.charcoal },
-  pillRow: { marginTop: spacing.md, flexGrow: 0 },
+  pillRow: { marginTop: spacing.md, height: 44, flexGrow: 0, flexShrink: 0 },
+  pillRowContent: { paddingHorizontal: spacing.lg, alignItems: "center" },
   sectionTitle: {
     ...typography.subheading,
     paddingHorizontal: spacing.lg,
