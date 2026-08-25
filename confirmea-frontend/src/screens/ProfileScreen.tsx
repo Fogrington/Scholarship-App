@@ -1,14 +1,39 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useAuth } from "../context/AuthContext";
+import { api } from "../api/client";
 import ConfirmModal from "../components/ConfirmModal";
+import ComplaintModal from "../components/ComplaintModal";
 
 export default function ProfileScreen() {
-  const { displayName, role, businessName, logout } = useAuth();
+  const { displayName, role, businessName, token, logout } = useAuth();
   const isBusiness = role === "business";
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [ownRating, setOwnRating] = useState<{ rating: number | null; reviewCount: number } | null>(null);
+
+  // Customers get an Uber-style personal rating from businesses — fetch it here,
+  // once, for display. Not worth a whole context for a single read-only value.
+  useEffect(() => {
+    if (role !== "customer" || !token) return;
+    let cancelled = false;
+    api
+      .get<{ user: { rating?: number | null; reviewCount?: number } }>("/auth/me", token)
+      .then((data) => {
+        if (cancelled) return;
+        if (data.user.reviewCount !== undefined) {
+          setOwnRating({ rating: data.user.rating ?? null, reviewCount: data.user.reviewCount });
+        }
+      })
+      .catch(() => {
+        // Non-critical — the profile just won't show a rating this session.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role, token]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -18,11 +43,25 @@ export default function ProfileScreen() {
         <View style={styles.avatar}>
           <Ionicons name={isBusiness ? "storefront" : "person"} size={26} color={colors.white} />
         </View>
-        <View style={{ marginLeft: spacing.md }}>
+        <View style={{ marginLeft: spacing.md, flex: 1 }}>
           <Text style={typography.subheading}>{isBusiness ? businessName ?? "Your business" : displayName ?? "Guest"}</Text>
           <Text style={typography.caption}>
             {isBusiness ? `Business account · ${displayName ?? ""}` : "Newcastle, NSW"}
           </Text>
+          {!isBusiness && (
+            <View style={styles.ratingRow}>
+              {ownRating && ownRating.rating !== null ? (
+                <>
+                  <Ionicons name="star" size={13} color={colors.apricotDark} />
+                  <Text style={styles.ratingText}>
+                    {ownRating.rating} ({ownRating.reviewCount} rating{ownRating.reviewCount === 1 ? "" : "s"} from businesses)
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.ratingText}>No ratings from businesses yet</Text>
+              )}
+            </View>
+          )}
         </View>
       </View>
 
@@ -43,6 +82,13 @@ export default function ProfileScreen() {
         <Text style={styles.rowLabel}>Notifications</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </View>
+      {!isBusiness && (
+        <Pressable style={styles.row} onPress={() => setFeedbackVisible(true)}>
+          <Ionicons name="chatbox-ellipses-outline" size={20} color={colors.apricotDark} />
+          <Text style={styles.rowLabel}>Send feedback about Confirmea</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
+      )}
       <View style={styles.row}>
         <Ionicons name="help-circle-outline" size={20} color={colors.apricotDark} />
         <Text style={styles.rowLabel}>Help & support</Text>
@@ -66,6 +112,8 @@ export default function ProfileScreen() {
           logout();
         }}
       />
+
+      <ComplaintModal visible={feedbackVisible} type="app" onClose={() => setFeedbackVisible(false)} />
     </SafeAreaView>
   );
 }
@@ -91,6 +139,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  ratingRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  ratingText: { ...typography.caption, marginLeft: 4 },
   sectionLabel: {
     ...typography.caption,
     paddingHorizontal: spacing.lg,

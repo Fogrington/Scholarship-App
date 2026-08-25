@@ -50,7 +50,7 @@ function serialize(row: ListingJoinRow, originLat?: number, originLng?: number) 
 }
 
 const BOOKED_COUNT_SUBQUERY = `
-  (SELECT COUNT(*) FROM bookings bk WHERE bk.listing_id = l.id AND bk.status = 'Upcoming') AS booked_count
+  (SELECT COUNT(*) FROM bookings bk WHERE bk.listing_id = l.id AND bk.status IN ('Upcoming', 'Offered')) AS booked_count
 `;
 
 const RATING_SUBQUERIES = `

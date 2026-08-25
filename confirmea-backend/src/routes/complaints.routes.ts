@@ -4,15 +4,16 @@ import db from "../db/index.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../middleware/errorHandler.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import type { BusinessRow, ComplaintRow, ComplaintStatus } from "../types.js";
+import type { BusinessRow, ComplaintRow, ComplaintStatus, UserRow } from "../types.js";
 
 const router = Router();
 
-function serialize(row: ComplaintRow & { business_name?: string }) {
+function serialize(row: ComplaintRow & { business_name?: string | null }) {
   return {
     id: row.id,
+    type: row.type,
     businessId: row.business_id,
-    businessName: row.business_name,
+    businessName: row.business_name ?? null,
     category: row.category,
     complainant: row.complainant_name,
     details: row.details,
@@ -24,13 +25,22 @@ function serialize(row: ComplaintRow & { business_name?: string }) {
   };
 }
 
-// Any authenticated customer can file a complaint against a business.
-const submitSchema = z.object({
-  businessId: z.number().int(),
-  category: z.string().min(1),
-  complainantName: z.string().min(1),
-  details: z.string().min(1),
-});
+// Any authenticated user can file a complaint against a business, or send feedback
+// about Confirmea itself. The complainant's name always comes from their own
+// account — never from client input, so no one can file on behalf of someone else.
+const submitSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("business"),
+    businessId: z.number().int(),
+    category: z.string().min(1),
+    details: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("app"),
+    category: z.string().min(1),
+    details: z.string().min(1),
+  }),
+]);
 
 router.post(
   "/",
@@ -38,42 +48,60 @@ router.post(
   asyncHandler(async (req, res) => {
     const data = submitSchema.parse(req.body);
 
-    const business = db.prepare("SELECT * FROM businesses WHERE id = ?").get(data.businessId) as
-      | BusinessRow
-      | undefined;
-    if (!business) throw new ApiError(404, "Business not found.");
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user!.sub) as UserRow | undefined;
+    if (!user) throw new ApiError(404, "User not found.");
+
+    let businessName: string | null = null;
+    let businessId: number | null = null;
+
+    if (data.type === "business") {
+      const business = db.prepare("SELECT * FROM businesses WHERE id = ?").get(data.businessId) as
+        | BusinessRow
+        | undefined;
+      if (!business) throw new ApiError(404, "Business not found.");
+      businessId = business.id;
+      businessName = business.name;
+    }
 
     const result = db
       .prepare(
-        "INSERT INTO complaints (business_id, category, complainant_name, details) VALUES (?, ?, ?, ?)"
+        "INSERT INTO complaints (type, business_id, user_id, category, complainant_name, details) VALUES (?, ?, ?, ?, ?, ?)"
       )
-      .run(data.businessId, data.category, data.complainantName, data.details);
+      .run(data.type, businessId, user.id, data.category, user.name, data.details);
 
     const row = db.prepare("SELECT * FROM complaints WHERE id = ?").get(result.lastInsertRowid) as ComplaintRow;
-    res.status(201).json(serialize({ ...row, business_name: business.name }));
+    res.status(201).json(serialize({ ...row, business_name: businessName }));
   })
 );
 
-// Admin only — list complaints, optionally filtered by status.
+// Admin only — list complaints and app feedback together, optionally filtered by
+// status and/or type.
 router.get(
   "/",
   requireAuth,
   requireRole("admin"),
   asyncHandler(async (req, res) => {
     const status = req.query.status as ComplaintStatus | undefined;
+    const type = req.query.type as string | undefined;
+
     let query = `
       SELECT c.*, b.name AS business_name
       FROM complaints c
-      JOIN businesses b ON b.id = c.business_id
+      LEFT JOIN businesses b ON b.id = c.business_id
+      WHERE 1 = 1
     `;
     const params: unknown[] = [];
     if (status) {
-      query += " WHERE c.status = ?";
+      query += " AND c.status = ?";
       params.push(status);
+    }
+    if (type) {
+      query += " AND c.type = ?";
+      params.push(type);
     }
     query += " ORDER BY c.submitted_at DESC";
 
-    const rows = db.prepare(query).all(...params) as (ComplaintRow & { business_name: string })[];
+    const rows = db.prepare(query).all(...params) as (ComplaintRow & { business_name: string | null })[];
     res.json(rows.map(serialize));
   })
 );
@@ -99,10 +127,10 @@ function decide(status: "resolved" | "dismissed") {
     const row = db
       .prepare(
         `SELECT c.*, b.name AS business_name FROM complaints c
-         JOIN businesses b ON b.id = c.business_id
+         LEFT JOIN businesses b ON b.id = c.business_id
          WHERE c.id = ?`
       )
-      .get(complaint.id) as ComplaintRow & { business_name: string };
+      .get(complaint.id) as ComplaintRow & { business_name: string | null };
     res.json(serialize(row));
   });
 }

@@ -23,7 +23,11 @@ Seeded logins:
   visit" star-rating prompt — a ready-made demo of that flow.
 - **Business:** `barebeautybar@confirmea.app` / `business123` and
   `saltandco@confirmea.app` / `business123` — also the mobile app, but lands on the
-  business dashboard instead of the customer screens
+  business dashboard instead of the customer screens. Both are Hair category, and
+  there's one seeded open Hair request (from Maya Chen, one of the dummy reviewer
+  accounts below) — log in as either and check the Requests tab for a ready-made demo
+  of the "looking for a service" flow. Salt & Co also has an `Upcoming` booking ready
+  to mark arrived/no-show and rate the customer on, for demoing that flow live.
 - **Dummy reviewers:** `reviewer1@confirmea.app` through `reviewer10@confirmea.app`,
   all `reviewer123` — not meant to be logged into during a demo, just the accounts
   behind the fabricated review history that gives each business a realistic rating.
@@ -94,6 +98,21 @@ seeded, business accounts via the admin-only `POST /businesses/:id/account`.
 | GET | `/bookings/mine` | customer | The logged-in customer's bookings |
 | GET | `/bookings/pending-review` | customer | Completed bookings with no review yet — the mobile app prompts a star rating for these after login |
 | POST | `/bookings/:id/review` | customer | `{ rating: 1-5 }` — one review per booking, enforced by a UNIQUE constraint plus an explicit check. 400 unless the booking is `Completed`, 409 if already reviewed. |
+| GET | `/bookings/pending-offer` | customer | A business's offer against the customer's open request, still awaiting yes/no — the mobile app alerts on this after login |
+| POST | `/bookings/:id/respond` | customer | `{ accept: boolean, keepRequestOpen?: boolean }` — accept confirms the booking and closes the request as `matched`. Decline needs `keepRequestOpen` to decide whether the request goes back to `open` or closes as `withdrawn`. |
+
+### Requests ("looking for a service")
+A customer posts an open call for a category; businesses that specialize in it see
+the request (oldest first) and can offer a slot. One active (`open` or `offered`)
+request per customer at a time.
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/requests` | customer | `{ category, note? }`. 409 if the customer already has an active request. |
+| GET | `/requests/mine` | customer | The customer's current active request, or `null` |
+| PATCH | `/requests/:id/withdraw` | customer | Takes down an `open` request. Once a business has offered, resolve it via `POST /bookings/:id/respond` instead. |
+| GET | `/requests/open` | business | Open requests matching this business's own category, oldest first |
+| POST | `/requests/:id/offer` | business | `{ service, price, discountPercent?, slotTime }` — creates a private, 1-capacity listing plus a booking in `Offered` status, and flips the request to `offered` (hiding it from every other business immediately, not just this one — verified against two separate business logins). 409 if the request isn't open anymore, 403 if the category doesn't match. |
 
 ### Business dashboard (business side)
 Every route here uses the `businessId` embedded in the logged-in business's token —
@@ -105,14 +124,20 @@ never a value from the request.
 | GET | `/business/listings` | business | All of this business's listings (active and closed), each with an `upcomingBookings` count |
 | POST | `/business/listings` | business | `{ service, category, price, discountPercent?, slotTime, capacity }` — posts a new open slot. `capacity` is required — how many customers can accept it before it stops showing up publicly. |
 | PATCH | `/business/listings/:id/close` | business | Sets `isActive: false` — stops it showing up publicly, keeps booking history. 403 if it's not this business's listing. |
-| GET | `/business/bookings` | business | Every booking against this business's listings, with customer name/email, optional `?status=Upcoming` |
+| GET | `/business/bookings` | business | Every booking against this business's listings, with customer name/email, optional `?status=Upcoming`. Includes `Offered` bookings too. Each customer also has `rating`/`reviewCount` — their aggregate rating from *all* businesses, not just this one — and a `canRateCustomer` flag (true once attendance is recorded and this specific booking hasn't been rated yet). |
 | PATCH | `/business/bookings/:id/arrived` | business | Marks a booking `Completed`. 403 if it's not this business's booking, 400 if it's not `Upcoming`. |
+| PATCH | `/business/bookings/:id/no-show` | business | Marks a booking `NoShow` instead — same checks as `/arrived`. |
+| POST | `/business/bookings/:id/rate-customer` | business | `{ rating: 1-5 }` — rate the customer, the reverse of a customer reviewing a business. Only allowed once attendance is recorded (`Completed` or `NoShow`), one rating per booking (409 if already rated). |
 
-### Complaints
+### Complaints (business complaints + app feedback)
+Both types land in the same admin inbox. `complainant_name` always comes from the
+logged-in user's own account — never trusted from the request body, so no one can
+file on behalf of someone else.
+
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/complaints` | any logged-in user | `{ businessId, category, complainantName, details }` |
-| GET | `/complaints` | admin | Optional `?status=open` (or resolved / dismissed) |
+| POST | `/complaints` | any logged-in user | `{ type: 'business', businessId, category, details }` to complain about a business, or `{ type: 'app', category, details }` for feedback about Confirmea itself |
+| GET | `/complaints` | admin | Optional `?status=open` (or resolved/dismissed) and/or `?type=business` (or app) |
 | PATCH | `/complaints/:id/resolve` | admin | `{ notes?, resolution }` — `resolution` required |
 | PATCH | `/complaints/:id/dismiss` | admin | Same shape as resolve |
 

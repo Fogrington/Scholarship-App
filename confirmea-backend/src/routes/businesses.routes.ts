@@ -48,7 +48,7 @@ const RATING_SUBQUERIES = `
 const OPEN_OFFERS_SUBQUERY = `
   (SELECT COUNT(*) FROM listings l
    WHERE l.business_id = b.id AND l.is_active = 1
-     AND l.capacity > (SELECT COUNT(*) FROM bookings bk WHERE bk.listing_id = l.id AND bk.status = 'Upcoming')
+     AND l.capacity > (SELECT COUNT(*) FROM bookings bk WHERE bk.listing_id = l.id AND bk.status IN ('Upcoming', 'Offered'))
   ) AS open_offers
 `;
 

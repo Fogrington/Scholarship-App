@@ -66,7 +66,7 @@ export interface BusinessWithOffers {
   distanceKm: number | null;
 }
 
-export type BookingStatus = "Upcoming" | "Completed" | "Cancelled";
+export type BookingStatus = "Offered" | "Upcoming" | "Completed" | "Cancelled" | "NoShow";
 
 export interface BookingListingSummary {
   id: number;
@@ -131,7 +131,7 @@ export interface BusinessBooking {
   id: number;
   status: BookingStatus;
   createdAt: string;
-  customer: { name: string; email: string };
+  customer: { name: string; email: string; rating: number | null; reviewCount: number };
   listing: {
     id: number;
     service: string;
@@ -140,4 +140,60 @@ export interface BusinessBooking {
     discountPercent: number | null;
     slotTime: string;
   };
+  canRateCustomer: boolean;
+}
+
+// ---- "Looking for a service" requests ----
+
+export type RequestStatus = "open" | "offered" | "matched" | "withdrawn";
+
+export interface ServiceRequest {
+  id: number;
+  category: string;
+  note: string;
+  status: RequestStatus;
+  createdAt: string;
+}
+
+// A request as a business sees it, oldest first — first in, best dressed.
+export interface OpenRequest extends ServiceRequest {
+  customerName: string;
+}
+
+// The result of a business successfully making an offer.
+export interface OfferResult {
+  bookingId: number;
+  requestId: number;
+  customerName: string;
+  service: string;
+  price: number;
+  discountPercent: number | null;
+  slotTime: string;
+}
+
+// A pending offer as the customer sees it — drives the accept/decline prompt.
+export interface PendingOffer {
+  bookingId: number;
+  businessId: number;
+  businessName: string;
+  service: string;
+  category: string;
+  price: number;
+  discountPercent: number | null;
+  slotTime: string;
+}
+
+// ---- Complaints & app feedback ----
+
+export type ComplaintType = "business" | "app";
+
+export interface ComplaintSubmission {
+  id: number;
+  type: ComplaintType;
+  businessId: number | null;
+  businessName: string | null;
+  category: string;
+  details: string;
+  status: "open" | "resolved" | "dismissed";
+  submittedAt: string;
 }

@@ -5,27 +5,52 @@ import { colors, spacing, typography, radius, shadow } from "../theme/theme";
 import { useBusiness } from "../context/BusinessContext";
 import Badge from "../components/Badge";
 import ConfirmModal from "../components/ConfirmModal";
+import RateCustomerModal from "../components/RateCustomerModal";
 import { ApiError } from "../api/client";
+import type { BusinessBooking } from "../types";
+
+type PendingAction = { id: number; customerName: string; outcome: "arrived" | "no-show" };
+type RatePrompt = { id: number; customerName: string; outcome: "arrived" | "no-show" };
+
+const STATUS_TONE: Record<BusinessBooking["status"], "apricot" | "success" | "warning" | "black"> = {
+  Offered: "apricot",
+  Upcoming: "apricot",
+  Completed: "success",
+  NoShow: "warning",
+  Cancelled: "black",
+};
 
 export default function BusinessBookingsScreen() {
-  const { bookings, loading, error, markArrived } = useBusiness();
+  const { bookings, loading, error, markArrived, markNoShow, rateCustomer } = useBusiness();
   const [markingId, setMarkingId] = useState<number | null>(null);
-  const [pending, setPending] = useState<{ id: number; customerName: string } | null>(null);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [ratePrompt, setRatePrompt] = useState<RatePrompt | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const handleConfirmArrived = async () => {
+  const handleConfirm = async () => {
     if (!pending) return;
-    const { id } = pending;
+    const { id, customerName, outcome } = pending;
     setPending(null);
     setActionError(null);
     setMarkingId(id);
     try {
-      await markArrived(id);
+      if (outcome === "arrived") {
+        await markArrived(id);
+      } else {
+        await markNoShow(id);
+      }
+      setRatePrompt({ id, customerName, outcome });
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Couldn't update it. Try again.");
     } finally {
       setMarkingId(null);
     }
+  };
+
+  const handleRateSubmit = async (rating: number) => {
+    if (!ratePrompt) return;
+    await rateCustomer(ratePrompt.id, rating);
+    setRatePrompt(null);
   };
 
   return (
@@ -53,11 +78,22 @@ export default function BusinessBookingsScreen() {
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.rowBetween}>
-                <Text style={typography.subheading}>{item.customer.name}</Text>
-                <Badge
-                  text={item.status}
-                  tone={item.status === "Upcoming" ? "apricot" : "success"}
-                />
+                <View style={{ flex: 1 }}>
+                  <Text style={typography.subheading}>{item.customer.name}</Text>
+                  <View style={styles.ratingRow}>
+                    {item.customer.rating !== null ? (
+                      <>
+                        <Ionicons name="star" size={12} color={colors.apricotDark} />
+                        <Text style={styles.ratingText}>
+                          {item.customer.rating} ({item.customer.reviewCount})
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles.ratingText}>New customer</Text>
+                    )}
+                  </View>
+                </View>
+                <Badge text={item.status} tone={STATUS_TONE[item.status]} />
               </View>
               <Text style={styles.email}>{item.customer.email}</Text>
 
@@ -71,15 +107,41 @@ export default function BusinessBookingsScreen() {
               </View>
 
               {item.status === "Upcoming" && (
+                <View style={styles.actionRow}>
+                  <Pressable
+                    style={styles.arrivedBtn}
+                    onPress={() => setPending({ id: item.id, customerName: item.customer.name, outcome: "arrived" })}
+                    disabled={markingId === item.id}
+                  >
+                    <Ionicons name="checkmark-circle-outline" size={16} color={colors.white} />
+                    <Text style={styles.arrivedBtnText}>
+                      {markingId === item.id ? "Updating…" : "Mark arrived"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.noShowBtn}
+                    onPress={() => setPending({ id: item.id, customerName: item.customer.name, outcome: "no-show" })}
+                    disabled={markingId === item.id}
+                  >
+                    <Ionicons name="close-circle-outline" size={16} color={colors.warning} />
+                    <Text style={styles.noShowBtnText}>No-show</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {item.canRateCustomer && (
                 <Pressable
-                  style={styles.arrivedBtn}
-                  onPress={() => setPending({ id: item.id, customerName: item.customer.name })}
-                  disabled={markingId === item.id}
+                  style={styles.rateBtn}
+                  onPress={() =>
+                    setRatePrompt({
+                      id: item.id,
+                      customerName: item.customer.name,
+                      outcome: item.status === "NoShow" ? "no-show" : "arrived",
+                    })
+                  }
                 >
-                  <Ionicons name="checkmark-circle-outline" size={16} color={colors.white} />
-                  <Text style={styles.arrivedBtnText}>
-                    {markingId === item.id ? "Updating…" : "Mark arrived"}
-                  </Text>
+                  <Ionicons name="star-outline" size={15} color={colors.apricotDark} />
+                  <Text style={styles.rateBtnText}>Rate this customer</Text>
                 </Pressable>
               )}
             </View>
@@ -95,11 +157,26 @@ export default function BusinessBookingsScreen() {
 
       <ConfirmModal
         visible={pending !== null}
-        title="Mark as arrived?"
-        message={pending ? `Confirm ${pending.customerName} has arrived for their appointment.` : ""}
-        confirmLabel="Mark arrived"
+        title={pending?.outcome === "arrived" ? "Mark as arrived?" : "Mark as a no-show?"}
+        message={
+          pending
+            ? pending.outcome === "arrived"
+              ? `Confirm ${pending.customerName} has arrived for their appointment.`
+              : `Confirm ${pending.customerName} didn't show up for their appointment.`
+            : ""
+        }
+        confirmLabel={pending?.outcome === "arrived" ? "Mark arrived" : "Mark no-show"}
+        destructive={pending?.outcome === "no-show"}
         onCancel={() => setPending(null)}
-        onConfirm={handleConfirmArrived}
+        onConfirm={handleConfirm}
+      />
+
+      <RateCustomerModal
+        visible={ratePrompt !== null}
+        customerName={ratePrompt?.customerName ?? ""}
+        outcome={ratePrompt?.outcome ?? "arrived"}
+        onSubmit={handleRateSubmit}
+        onSkip={() => setRatePrompt(null)}
       />
     </SafeAreaView>
   );
@@ -124,20 +201,45 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...shadow.card,
   },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  email: { ...typography.caption, marginTop: 2 },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  ratingRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
+  ratingText: { ...typography.caption, marginLeft: 3 },
+  email: { ...typography.caption, marginTop: 6 },
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
   metaText: { ...typography.caption, marginLeft: 6 },
+  actionRow: { flexDirection: "row", gap: 8, marginTop: spacing.md },
   arrivedBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.success,
     borderRadius: radius.sm,
     paddingVertical: 10,
-    marginTop: spacing.md,
   },
   arrivedBtnText: { color: colors.white, fontWeight: "800", fontSize: 12.5, marginLeft: 6 },
+  noShowBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+    borderRadius: radius.sm,
+    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: colors.warning,
+  },
+  noShowBtnText: { color: colors.warning, fontWeight: "800", fontSize: 12.5, marginLeft: 6 },
+  rateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  rateBtnText: { color: colors.apricotDark, fontWeight: "700", fontSize: 12.5, marginLeft: 6 },
   empty: { alignItems: "center", marginTop: spacing.xl, opacity: 0.6, paddingHorizontal: spacing.lg },
   emptyText: { ...typography.body, marginTop: spacing.sm, textAlign: "center" },
 });

@@ -90,9 +90,28 @@ router.get(
   asyncHandler(async (req, res) => {
     const user = db
       .prepare("SELECT id, email, name, role, business_id FROM users WHERE id = ?")
-      .get(req.user!.sub);
+      .get(req.user!.sub) as { id: number; email: string; name: string; role: string; business_id: number | null } | undefined;
     if (!user) throw new ApiError(404, "User not found.");
-    res.json({ user });
+
+    let customerRating: { rating: number | null; reviewCount: number } | undefined;
+    if (user.role === "customer") {
+      const { avg_rating, rating_count } = db
+        .prepare(
+          "SELECT AVG(rating) AS avg_rating, COUNT(*) AS rating_count FROM customer_ratings WHERE user_id = ?"
+        )
+        .get(user.id) as { avg_rating: number | null; rating_count: number };
+      customerRating = {
+        rating: avg_rating !== null ? Math.round(avg_rating * 10) / 10 : null,
+        reviewCount: rating_count,
+      };
+    }
+
+    res.json({
+      user: {
+        ...user,
+        ...(customerRating ? { rating: customerRating.rating, reviewCount: customerRating.reviewCount } : {}),
+      },
+    });
   })
 );
 

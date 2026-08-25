@@ -8,6 +8,7 @@ import { api } from "../api/client";
 import { useLocationSuburb } from "../context/LocationContext";
 import { getCategoryIllustration } from "../data/categoryIllustrations";
 import ServiceCard from "../components/ServiceCard";
+import ComplaintModal from "../components/ComplaintModal";
 import type { Listing } from "../types";
 
 // This screen is mounted in both the Home stack and the Explore stack, which have
@@ -38,6 +39,7 @@ export default function BusinessDetailScreen() {
   const [offers, setOffers] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [complaintVisible, setComplaintVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -127,6 +129,11 @@ export default function BusinessDetailScreen() {
                     <Text style={styles.metaText}>New — no reviews yet</Text>
                   )}
                 </View>
+
+                <Pressable style={styles.reportRow} onPress={() => setComplaintVisible(true)}>
+                  <Ionicons name="flag-outline" size={13} color={colors.textMuted} />
+                  <Text style={styles.reportText}>Report an issue with this business</Text>
+                </Pressable>
               </View>
 
               <Text style={styles.sectionTitle}>
@@ -143,6 +150,16 @@ export default function BusinessDetailScreen() {
               <Text style={styles.emptyText}>Nothing open right now — check back soon.</Text>
             </View>
           }
+        />
+      )}
+
+      {business && (
+        <ComplaintModal
+          visible={complaintVisible}
+          type="business"
+          businessId={business.id}
+          businessName={business.name}
+          onClose={() => setComplaintVisible(false)}
         />
       )}
     </SafeAreaView>
@@ -183,6 +200,8 @@ const styles = StyleSheet.create({
   categoryBadgeText: { color: colors.white, fontSize: 11, fontWeight: "800" },
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
   metaText: { ...typography.caption, marginLeft: 6 },
+  reportRow: { flexDirection: "row", alignItems: "center", marginTop: spacing.sm },
+  reportText: { ...typography.caption, marginLeft: 6, textDecorationLine: "underline" },
   sectionTitle: { ...typography.subheading, marginBottom: spacing.sm },
   empty: { alignItems: "center", marginTop: spacing.xl, opacity: 0.6, paddingHorizontal: spacing.lg },
   emptyText: { ...typography.body, marginTop: spacing.sm, textAlign: "center" },

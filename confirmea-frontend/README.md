@@ -121,8 +121,24 @@ note about it below — everything else works the same as on a phone.
   it for that session only — you'll be asked again next time you log in. This modal
   lives above the whole app (a real `Modal`, not a screen), so it shows up regardless
   of which tab you land on after login.
+- **Requests tab** (new): can't find an open slot that suits you? Post what you're
+  after — a category and an optional note — and businesses that specialize in it can
+  see your request and offer you a slot directly. One active request at a time; a big
+  "I'm looking for a service" button when you don't have one, a status card when you
+  do. When a business offers you something, a modal alert pops up ("You've got an
+  offer!") the same way the review prompt does — Accept confirms the booking, Decline
+  asks a follow-up question: keep your request open for other businesses to try, or
+  take it down.
 
 ### Business side
+- **Requests tab** (new): open requests from customers looking for this business's
+  specialty, oldest first — the customer who's been waiting longest shows up first,
+  tagged "Longest waiting". Tap one to fill out an offer (service, price, optional
+  discount, the same day/time picker used for posting a regular slot) and send it —
+  the customer gets the alert immediately (well, next time they open the app; there's
+  no push notification infrastructure yet, see Next steps). This offer is private —
+  it never shows up on public Discover, only to the one customer it was made for.
+
 - **Slots tab**: every open slot this business has posted, with a live "X of Y spots
   booked" count and a distinct **Full** badge once it hits capacity (separate from
   **Closed**, which is the business manually pulling it down). Tap **+** to post a new
@@ -140,6 +156,30 @@ note about it below — everything else works the same as on a phone.
 Every business-side write is scoped server-side to the logged-in business's own data —
 one business can never see or touch another's bookings or listings, even by guessing
 IDs. Verified directly against the API before this was wired into the UI.
+
+### Customer ratings (Uber-style) and no-shows
+
+Marking a booking now has two outcomes, not one: "Mark arrived" (unchanged) or the
+new "No-show" — both close the booking out, just with a different status. After
+either, a lightweight star-rating prompt (`RateCustomerModal`) lets the business
+rate the customer 1-5, optional and skippable. It's the mirror of the customer
+review system: one rating per booking, aggregated per customer. A customer's
+aggregate shows up on the business's Bookings tab next to their name, and on the
+customer's own Profile tab ("No ratings from businesses yet" until they have one —
+Fletch is seeded with a 5-star rating for the demo). Ratings persist even for
+bookings that haven't individually been rated — the aggregate follows the customer
+across all their history with any business, not just one.
+
+### Complaints and app feedback
+
+Two entry points, one shared `ComplaintModal` component: "Report an issue" on a
+business's detail screen (pre-filled with that business), and "Send feedback about
+Confirmea" on the customer Profile tab (no business attached). Both post to the
+same `POST /complaints` endpoint with a `type` field, and both land in the admin
+panel's Complaints tab together — the admin panel now has a type filter
+("All types" / "Business complaints" / "App feedback") alongside the existing
+open/resolved/dismissed tabs. The complainant's name is always the logged-in
+user's own name, taken server-side — never something the client can spoof.
 
 ### A note on confirmations
 
@@ -162,19 +202,24 @@ src/
   context/       AuthContext (login/session, now role-aware), BookingsContext
                  (customer bookings), BusinessContext (business listings + bookings),
                  ReviewsContext (pending reviews + submitting a rating),
-                 LocationContext (persisted suburb selection)
+                 LocationContext (persisted suburb selection), RequestsContext
+                 (customer's own request + pending offer)
   components/    ServiceCard, CategoryPill, Badge, BusinessCard, ReviewPromptModal,
-                 ConfirmModal, LocationPickerModal, BusinessMap.tsx (web fallback
-                 list) + BusinessMap.native.tsx (real map — Metro picks per platform)
+                 OfferPromptModal, ConfirmModal, LocationPickerModal,
+                 CreateRequestModal, BusinessMap.tsx (web fallback list) +
+                 BusinessMap.native.tsx (real map — Metro picks per platform)
   screens/       LoginScreen, HomeScreen (Discover, business-first), ExploreScreen
                  (map/list of businesses), BusinessDetailScreen (a business's open
                  offers), ListingDetailScreen (booking flow), BookingsScreen,
-                 ProfileScreen (shared), BusinessSlotsScreen, AddSlotScreen,
-                 BusinessBookingsScreen
+                 RequestsScreen (customer), ProfileScreen (shared), BusinessSlotsScreen,
+                 AddSlotScreen, BusinessBookingsScreen, BusinessRequestsScreen,
+                 MakeOfferScreen
   navigation/    RootNavigator — branches into ClientTabs or BusinessTabs by role;
-                 both Home and Explore have their own stack so BusinessDetail/
-                 ListingDetail keep separate back-histories per tab
+                 Home, Explore, and the business Requests tab each have their own
+                 stack so BusinessDetail/ListingDetail/MakeOffer keep separate
+                 back-histories per tab
   data/          categoryIllustrations.ts (local cartoon art)
+  utils/         formatDateTime.ts — turns SQLite timestamps into readable local time
   types.ts       shared types, matching the backend's JSON shapes field-for-field
   theme/         design tokens (apricot/black brand, shared with the admin panel)
 ```
@@ -189,8 +234,10 @@ src/
 - Real GPS instead of the manual suburb picker — the distance math and sorting are
   already real, this would just mean plugging in `expo-location` instead of a fixed
   suburb list, if that's ever worth the added permission-prompt complexity
-- Push notifications — e.g. notify a business when a slot gets booked, or a customer
-  when their business marks them arrived
+- Push notifications — this matters more now that requests exist: right now a
+  business only sees "you have an offer" when they next open the app, not the moment
+  it happens. Real push notifications (or at least a badge count) would make the
+  whole request/offer loop feel much more "last-minute"
 - Let a business edit an existing slot (including capacity) instead of only closing
   and re-posting
 - A real calendar/date picker if slots ever need to go beyond "Today"/"Tomorrow" —
@@ -205,3 +252,6 @@ src/
 - The Explore map is view-only right now (tap a pin's callout to open the business).
   Clustering pins when zoomed out, or a "search this area" button, would help once
   there are enough businesses that pins start overlapping
+- A business currently can't see the outcome of an offer they've already sent
+  (accepted/declined/still pending) except by checking their Bookings tab — a
+  dedicated "sent offers" view might be worth adding if that becomes a common need

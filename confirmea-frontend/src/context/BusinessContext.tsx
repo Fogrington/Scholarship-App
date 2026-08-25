@@ -21,6 +21,8 @@ type BusinessContextValue = {
   addListing: (input: NewSlotInput) => Promise<void>;
   closeListing: (id: number) => Promise<void>;
   markArrived: (bookingId: number) => Promise<void>;
+  markNoShow: (bookingId: number) => Promise<void>;
+  rateCustomer: (bookingId: number, rating: number) => Promise<void>;
 };
 
 const BusinessContext = createContext<BusinessContextValue | undefined>(undefined);
@@ -93,9 +95,40 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     [token]
   );
 
+  const markNoShow = useCallback(
+    async (bookingId: number) => {
+      const updated = await api.patch<BusinessBooking>(`/business/bookings/${bookingId}/no-show`, {}, token);
+      setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
+    },
+    [token]
+  );
+
+  const rateCustomer = useCallback(
+    async (bookingId: number, rating: number) => {
+      const updated = await api.post<BusinessBooking>(
+        `/business/bookings/${bookingId}/rate-customer`,
+        { rating },
+        token
+      );
+      setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
+    },
+    [token]
+  );
+
   return (
     <BusinessContext.Provider
-      value={{ listings, bookings, loading, error, refresh, addListing, closeListing, markArrived }}
+      value={{
+        listings,
+        bookings,
+        loading,
+        error,
+        refresh,
+        addListing,
+        closeListing,
+        markArrived,
+        markNoShow,
+        rateCustomer,
+      }}
     >
       {children}
     </BusinessContext.Provider>

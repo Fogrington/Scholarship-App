@@ -46,6 +46,18 @@ CREATE TABLE IF NOT EXISTS businesses (
   approved_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- A customer's open call for a service ("I'm looking for a haircut"). Businesses
+-- that specialize in the matching category can see it and offer a slot. One active
+-- (open or offered) request per user at a time, enforced in the route handler.
+CREATE TABLE IF NOT EXISTS requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  category TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL CHECK (status IN ('open', 'offered', 'matched', 'withdrawn')) DEFAULT 'open',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Bookable last-minute slots offered by a business.
 CREATE TABLE IF NOT EXISTS listings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,18 +77,26 @@ CREATE TABLE IF NOT EXISTS listings (
 );
 
 -- A customer reserving a listing. Payment happens in person, not through the app.
+-- request_id is set only for bookings created by a business offering a slot in
+-- response to a customer's open request (see the requests table below) — normal
+-- public bookings leave it null.
 CREATE TABLE IF NOT EXISTS bookings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
   listing_id INTEGER NOT NULL REFERENCES listings(id),
-  status TEXT NOT NULL CHECK (status IN ('Upcoming', 'Completed', 'Cancelled')) DEFAULT 'Upcoming',
+  status TEXT NOT NULL CHECK (status IN ('Offered', 'Upcoming', 'Completed', 'Cancelled', 'NoShow')) DEFAULT 'Upcoming',
+  request_id INTEGER REFERENCES requests(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- A complaint raised against a business, reviewed by an admin.
+-- A complaint or piece of feedback reviewed by an admin. type='business' targets a
+-- specific business (business_id set); type='app' is feedback/a suggestion about
+-- Confirmea itself (business_id null). Both land in the same admin inbox.
 CREATE TABLE IF NOT EXISTS complaints (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  business_id INTEGER NOT NULL REFERENCES businesses(id),
+  type TEXT NOT NULL CHECK (type IN ('business', 'app')) DEFAULT 'business',
+  business_id INTEGER REFERENCES businesses(id),
+  user_id INTEGER REFERENCES users(id),
   category TEXT NOT NULL,
   complainant_name TEXT NOT NULL,
   details TEXT NOT NULL,
@@ -98,8 +118,23 @@ CREATE TABLE IF NOT EXISTS reviews (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- The reverse of reviews — a business's 1-5 star rating of a customer, given after
+-- marking them either arrived (Completed) or a no-show (NoShow). One rating per
+-- booking. Aggregated per customer, like a rider rating on Uber.
+CREATE TABLE IF NOT EXISTS customer_ratings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL UNIQUE REFERENCES bookings(id),
+  business_id INTEGER NOT NULL REFERENCES businesses(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_listings_business ON listings(business_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_listing ON bookings(listing_id);
 CREATE INDEX IF NOT EXISTS idx_complaints_business ON complaints(business_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_business ON reviews(business_id);
+CREATE INDEX IF NOT EXISTS idx_requests_user ON requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_requests_category_status ON requests(category, status);
+CREATE INDEX IF NOT EXISTS idx_customer_ratings_user ON customer_ratings(user_id);

@@ -58,21 +58,25 @@ export interface ListingRow {
   created_at: string;
 }
 
-export type BookingStatus = "Upcoming" | "Completed" | "Cancelled";
+export type BookingStatus = "Offered" | "Upcoming" | "Completed" | "Cancelled" | "NoShow";
 
 export interface BookingRow {
   id: number;
   user_id: number;
   listing_id: number;
   status: BookingStatus;
+  request_id: number | null;
   created_at: string;
 }
 
 export type ComplaintStatus = "open" | "resolved" | "dismissed";
+export type ComplaintType = "business" | "app";
 
 export interface ComplaintRow {
   id: number;
-  business_id: number;
+  type: ComplaintType;
+  business_id: number | null;
+  user_id: number | null;
   category: string;
   complainant_name: string;
   details: string;
@@ -89,6 +93,26 @@ export interface ReviewRow {
   business_id: number;
   user_id: number;
   rating: number;
+  created_at: string;
+}
+
+export interface CustomerRatingRow {
+  id: number;
+  booking_id: number;
+  business_id: number;
+  user_id: number;
+  rating: number;
+  created_at: string;
+}
+
+export type RequestStatus = "open" | "offered" | "matched" | "withdrawn";
+
+export interface RequestRow {
+  id: number;
+  user_id: number;
+  category: string;
+  note: string;
+  status: RequestStatus;
   created_at: string;
 }
 

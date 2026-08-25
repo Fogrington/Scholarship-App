@@ -6,7 +6,9 @@ import { BookingsProvider } from "./src/context/BookingsContext";
 import { BusinessProvider } from "./src/context/BusinessContext";
 import { ReviewsProvider } from "./src/context/ReviewsContext";
 import { LocationProvider } from "./src/context/LocationContext";
+import { RequestsProvider } from "./src/context/RequestsContext";
 import ReviewPromptModal from "./src/components/ReviewPromptModal";
+import OfferPromptModal from "./src/components/OfferPromptModal";
 
 export default function App() {
   return (
@@ -15,9 +17,12 @@ export default function App() {
         <BookingsProvider>
           <BusinessProvider>
             <ReviewsProvider>
-              <StatusBar style="dark" />
-              <RootNavigator />
-              <ReviewPromptModal />
+              <RequestsProvider>
+                <StatusBar style="dark" />
+                <RootNavigator />
+                <ReviewPromptModal />
+                <OfferPromptModal />
+              </RequestsProvider>
             </ReviewsProvider>
           </BusinessProvider>
         </BookingsProvider>

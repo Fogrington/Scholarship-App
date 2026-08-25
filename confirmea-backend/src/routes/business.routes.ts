@@ -78,7 +78,7 @@ router.get(
     const rows = db
       .prepare(
         `SELECT l.*,
-                (SELECT COUNT(*) FROM bookings b WHERE b.listing_id = l.id AND b.status = 'Upcoming') AS upcoming_count
+                (SELECT COUNT(*) FROM bookings b WHERE b.listing_id = l.id AND b.status IN ('Upcoming', 'Offered')) AS upcoming_count
          FROM listings l
          WHERE l.business_id = ?
          ORDER BY l.created_at DESC`
@@ -140,7 +140,7 @@ router.patch(
     const row = db
       .prepare(
         `SELECT l.*,
-                (SELECT COUNT(*) FROM bookings b WHERE b.listing_id = l.id AND b.status = 'Upcoming') AS upcoming_count
+                (SELECT COUNT(*) FROM bookings b WHERE b.listing_id = l.id AND b.status IN ('Upcoming', 'Offered')) AS upcoming_count
          FROM listings l WHERE l.id = ?`
       )
       .get(listing.id) as ListingWithCount;
@@ -157,14 +157,34 @@ type BookingJoinRow = BookingRow & {
   price: number;
   discount_percent: number | null;
   slot_time: string;
+  customer_avg_rating: number | null;
+  customer_rating_count: number;
+  rated_this_booking: number;
 };
 
+const BOOKING_SELECT = `
+  SELECT bk.*, u.name AS customer_name, u.email AS customer_email,
+         l.service, l.category, l.price, l.discount_percent, l.slot_time,
+         (SELECT AVG(cr.rating) FROM customer_ratings cr WHERE cr.user_id = bk.user_id) AS customer_avg_rating,
+         (SELECT COUNT(*) FROM customer_ratings cr WHERE cr.user_id = bk.user_id) AS customer_rating_count,
+         (SELECT COUNT(*) FROM customer_ratings cr WHERE cr.booking_id = bk.id) AS rated_this_booking
+  FROM bookings bk
+  JOIN listings l ON l.id = bk.listing_id
+  JOIN users u ON u.id = bk.user_id
+`;
+
 function serializeBooking(row: BookingJoinRow) {
+  const canRateCustomer = (row.status === "Completed" || row.status === "NoShow") && row.rated_this_booking === 0;
   return {
     id: row.id,
     status: row.status,
     createdAt: row.created_at,
-    customer: { name: row.customer_name, email: row.customer_email },
+    customer: {
+      name: row.customer_name,
+      email: row.customer_email,
+      rating: row.customer_avg_rating !== null ? Math.round(row.customer_avg_rating * 10) / 10 : null,
+      reviewCount: row.customer_rating_count,
+    },
     listing: {
       id: row.listing_id,
       service: row.service,
@@ -173,6 +193,7 @@ function serializeBooking(row: BookingJoinRow) {
       discountPercent: row.discount_percent,
       slotTime: row.slot_time,
     },
+    canRateCustomer,
   };
 }
 
@@ -182,14 +203,7 @@ router.get(
     const businessId = requireBusinessId(req);
     const status = req.query.status as string | undefined;
 
-    let query = `
-      SELECT bk.*, u.name AS customer_name, u.email AS customer_email,
-             l.service, l.category, l.price, l.discount_percent, l.slot_time
-      FROM bookings bk
-      JOIN listings l ON l.id = bk.listing_id
-      JOIN users u ON u.id = bk.user_id
-      WHERE l.business_id = ?
-    `;
+    let query = `${BOOKING_SELECT} WHERE l.business_id = ?`;
     const params: unknown[] = [businessId];
     if (status) {
       query += " AND bk.status = ?";
@@ -202,10 +216,10 @@ router.get(
   })
 );
 
-// Mark a customer as arrived — closes out the booking as Completed.
-router.patch(
-  "/bookings/:id/arrived",
-  asyncHandler(async (req, res) => {
+// Shared by /arrived and /no-show — both close a booking out with an attendance
+// outcome, verifying it's this business's own upcoming booking first.
+function markAttendance(nextStatus: "Completed" | "NoShow") {
+  return asyncHandler(async (req: import("express").Request, res: import("express").Response) => {
     const businessId = requireBusinessId(req);
 
     const booking = db
@@ -221,18 +235,52 @@ router.patch(
     if (booking.listing_business_id !== businessId) throw new ApiError(403, "That's not your booking.");
     if (booking.status !== "Upcoming") throw new ApiError(400, "This booking is already closed out.");
 
-    db.prepare("UPDATE bookings SET status = 'Completed' WHERE id = ?").run(booking.id);
+    db.prepare("UPDATE bookings SET status = ? WHERE id = ?").run(nextStatus, booking.id);
 
-    const row = db
+    const row = db.prepare(`${BOOKING_SELECT} WHERE bk.id = ?`).get(booking.id) as BookingJoinRow;
+    res.json(serializeBooking(row));
+  });
+}
+
+// Mark a customer as arrived — closes out the booking as Completed.
+router.patch("/bookings/:id/arrived", markAttendance("Completed"));
+
+// Mark a customer as a no-show — closes out the booking without them showing up.
+router.patch("/bookings/:id/no-show", markAttendance("NoShow"));
+
+// Rate the customer 1-5 stars, after attendance has been recorded either way. One
+// rating per booking — mirrors how a customer reviews a business, just reversed.
+const rateCustomerSchema = z.object({ rating: z.number().int().min(1).max(5) });
+
+router.post(
+  "/bookings/:id/rate-customer",
+  asyncHandler(async (req, res) => {
+    const businessId = requireBusinessId(req);
+    const { rating } = rateCustomerSchema.parse(req.body);
+
+    const booking = db
       .prepare(
-        `SELECT bk.*, u.name AS customer_name, u.email AS customer_email,
-                l.service, l.category, l.price, l.discount_percent, l.slot_time
+        `SELECT bk.*, l.business_id AS listing_business_id
          FROM bookings bk
          JOIN listings l ON l.id = bk.listing_id
-         JOIN users u ON u.id = bk.user_id
          WHERE bk.id = ?`
       )
-      .get(booking.id) as BookingJoinRow;
+      .get(req.params.id) as (BookingRow & { listing_business_id: number }) | undefined;
+
+    if (!booking) throw new ApiError(404, "Booking not found.");
+    if (booking.listing_business_id !== businessId) throw new ApiError(403, "That's not your booking.");
+    if (booking.status !== "Completed" && booking.status !== "NoShow") {
+      throw new ApiError(400, "You can only rate a customer after marking them arrived or a no-show.");
+    }
+
+    const existing = db.prepare("SELECT id FROM customer_ratings WHERE booking_id = ?").get(booking.id);
+    if (existing) throw new ApiError(409, "You've already rated this customer for this booking.");
+
+    db.prepare(
+      "INSERT INTO customer_ratings (booking_id, business_id, user_id, rating) VALUES (?, ?, ?, ?)"
+    ).run(booking.id, businessId, booking.user_id, rating);
+
+    const row = db.prepare(`${BOOKING_SELECT} WHERE bk.id = ?`).get(booking.id) as BookingJoinRow;
     res.json(serializeBooking(row));
   })
 );

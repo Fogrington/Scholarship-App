@@ -15,7 +15,7 @@
 // This has to be a real IP, not "localhost", for Expo Go on a real device — that's
 // the setup this whole project has been tested with so far.
 
-const LAN_IP = "192.168.0.185"; // <-- CHANGE THIS to your computer's IP address
+const LAN_IP = "10.222.126.117"; // <-- CHANGE THIS to your computer's IP address
 const BASE_HOST = LAN_IP;
 const BASE_PORT = 4000;
 

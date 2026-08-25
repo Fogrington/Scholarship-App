@@ -139,6 +139,30 @@ function seed() {
       listingIds["Barber & Sons"]
     );
 
+    // A second, already-settled visit for Fletch — reviewed (so it doesn't also
+    // trigger the review prompt) and rated by the business, so Fletch's own Profile
+    // tab has a real customer rating to show off in the demo.
+    const fletchSecondBooking = db
+      .prepare("INSERT INTO bookings (user_id, listing_id, status) VALUES (?, ?, 'Completed')")
+      .run(fletchId.id, listingIds["Salt & Co Hair Studio"]);
+    db.prepare("INSERT INTO reviews (booking_id, business_id, user_id, rating) VALUES (?, ?, ?, ?)").run(
+      Number(fletchSecondBooking.lastInsertRowid),
+      businessIds["Salt & Co Hair Studio"],
+      fletchId.id,
+      5
+    );
+    db.prepare(
+      "INSERT INTO customer_ratings (booking_id, business_id, user_id, rating) VALUES (?, ?, ?, ?)"
+    ).run(Number(fletchSecondBooking.lastInsertRowid), businessIds["Salt & Co Hair Studio"], fletchId.id, 5);
+
+    // An Upcoming booking against Salt & Co, from a real (dummy) customer account —
+    // gives the business demo something to mark arrived/no-show and rate live,
+    // rather than the presenter having to create a booking from scratch first.
+    db.prepare("INSERT INTO bookings (user_id, listing_id, status) VALUES (?, ?, 'Upcoming')").run(
+      reviewerIds[3],
+      listingIds["Salt & Co Hair Studio"]
+    );
+
     // ---- Applications (the admin panel's review queue) ----
     db.prepare(
       `INSERT INTO applications
@@ -228,6 +252,25 @@ function seed() {
       "Site visit conducted.",
       "No issue found on inspection; complainant notified."
     );
+
+    // ---- One piece of app feedback (not tied to any business), from Fletch ----
+    db.prepare(
+      `INSERT INTO complaints (type, business_id, user_id, category, complainant_name, details, status)
+       VALUES ('app', NULL, ?, ?, ?, ?, 'open')`
+    ).run(
+      fletchId.id,
+      "Suggestion",
+      "Fletch",
+      "Would be great to filter Discover by price range, not just category and distance."
+    );
+    // ---- A demo open request, so the business dashboard's Requests tab has
+    // something to show without the presenter needing to create one live. Category
+    // matches both Salt & Co Hair Studio and Barber & Sons. ----
+    db.prepare("INSERT INTO requests (user_id, category, note) VALUES (?, ?, ?)").run(
+      reviewerIds[0],
+      "Hair",
+      "Need a quick trim before a work event this afternoon — flexible on timing!"
+    );
   });
 
   txn();
@@ -237,6 +280,10 @@ function seed() {
   console.log("Business logins: barebeautybar@confirmea.app / business123, saltandco@confirmea.app / business123");
   console.log("Fletch has one completed, unreviewed booking — logging in prompts a star rating.");
   console.log("10 dummy reviewer accounts also seeded (reviewer1..10@confirmea.app / reviewer123) for review history.");
+  console.log("One open Hair request is seeded too — log in as a Hair business to see it on the Requests tab.");
+  console.log("Salt & Co has an Upcoming booking ready to mark arrived/no-show and rate the customer on.");
+  console.log("Fletch has a customer rating already (5 stars) — check his Profile tab.");
+  console.log("One app-feedback item (not tied to a business) is seeded in the admin Complaints tab.");
 }
 
 seed();

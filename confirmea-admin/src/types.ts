@@ -24,10 +24,13 @@ export interface Application {
   decidedAt: string | null;
 }
 
+export type ComplaintType = "business" | "app";
+
 export interface Complaint {
   id: number;
-  businessId: number;
-  businessName: string;
+  type: ComplaintType;
+  businessId: number | null;
+  businessName: string | null;
   category: string;
   complainant: string;
   details: string;

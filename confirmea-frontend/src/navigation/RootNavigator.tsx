@@ -14,10 +14,13 @@ import ExploreScreen from "../screens/ExploreScreen";
 import BusinessDetailScreen from "../screens/BusinessDetailScreen";
 import ListingDetailScreen from "../screens/ListingDetailScreen";
 import BookingsScreen from "../screens/BookingsScreen";
+import RequestsScreen from "../screens/RequestsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import BusinessSlotsScreen from "../screens/BusinessSlotsScreen";
 import AddSlotScreen from "../screens/AddSlotScreen";
 import BusinessBookingsScreen from "../screens/BusinessBookingsScreen";
+import BusinessRequestsScreen from "../screens/BusinessRequestsScreen";
+import MakeOfferScreen from "../screens/MakeOfferScreen";
 
 // ---- Customer navigation ----
 // Both the Home (Discover) tab and the Explore (map) tab can drill into a
@@ -38,6 +41,7 @@ export type ExploreStackParamList = {
 export type ClientTabParamList = {
   HomeTab: undefined;
   ExploreTab: undefined;
+  RequestsTab: undefined;
   BookingsTab: undefined;
   ProfileTab: undefined;
 };
@@ -48,8 +52,14 @@ export type BusinessStackParamList = {
   AddSlot: undefined;
 };
 
+export type BusinessRequestsStackParamList = {
+  RequestsList: undefined;
+  MakeOffer: { requestId: number; customerName: string; category: string };
+};
+
 export type BusinessTabParamList = {
   SlotsTab: undefined;
+  RequestsTab: undefined;
   BusinessBookingsTab: undefined;
   ProfileTab: undefined;
 };
@@ -64,6 +74,7 @@ const ClientStack = createNativeStackNavigator<ClientStackParamList>();
 const ExploreStack = createNativeStackNavigator<ExploreStackParamList>();
 const ClientTab = createBottomTabNavigator<ClientTabParamList>();
 const BusinessStack = createNativeStackNavigator<BusinessStackParamList>();
+const BusinessRequestsStack = createNativeStackNavigator<BusinessRequestsStackParamList>();
 const BusinessTab = createBottomTabNavigator<BusinessTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
@@ -110,6 +121,7 @@ function ClientTabs() {
           const icons: Record<keyof ClientTabParamList, keyof typeof Ionicons.glyphMap> = {
             HomeTab: "home",
             ExploreTab: "map",
+            RequestsTab: "megaphone",
             BookingsTab: "calendar",
             ProfileTab: "person",
           };
@@ -119,6 +131,7 @@ function ClientTabs() {
     >
       <ClientTab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Discover" }} />
       <ClientTab.Screen name="ExploreTab" component={ExploreStackNavigator} options={{ title: "Explore" }} />
+      <ClientTab.Screen name="RequestsTab" component={RequestsScreen} options={{ title: "Requests" }} />
       <ClientTab.Screen name="BookingsTab" component={BookingsScreen} options={{ title: "Bookings" }} />
       <ClientTab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: "Profile" }} />
     </ClientTab.Navigator>
@@ -134,6 +147,15 @@ function SlotsStackNavigator() {
   );
 }
 
+function BusinessRequestsStackNavigator() {
+  return (
+    <BusinessRequestsStack.Navigator screenOptions={{ headerShown: false }}>
+      <BusinessRequestsStack.Screen name="RequestsList" component={BusinessRequestsScreen} />
+      <BusinessRequestsStack.Screen name="MakeOffer" component={MakeOfferScreen} />
+    </BusinessRequestsStack.Navigator>
+  );
+}
+
 function BusinessTabs() {
   return (
     <BusinessTab.Navigator
@@ -142,6 +164,7 @@ function BusinessTabs() {
         tabBarIcon: ({ color, size }) => {
           const icons: Record<keyof BusinessTabParamList, keyof typeof Ionicons.glyphMap> = {
             SlotsTab: "grid-outline",
+            RequestsTab: "megaphone-outline",
             BusinessBookingsTab: "calendar",
             ProfileTab: "person",
           };
@@ -152,6 +175,11 @@ function BusinessTabs() {
       })}
     >
       <BusinessTab.Screen name="SlotsTab" component={SlotsStackNavigator} options={{ title: "Slots" }} />
+      <BusinessTab.Screen
+        name="RequestsTab"
+        component={BusinessRequestsStackNavigator}
+        options={{ title: "Requests" }}
+      />
       <BusinessTab.Screen
         name="BusinessBookingsTab"
         component={BusinessBookingsScreen}

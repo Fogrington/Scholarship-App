@@ -59,7 +59,7 @@ router.post(
       if (!listing) throw new ApiError(404, "That slot isn't available.");
 
       const { count: bookedCount } = db
-        .prepare("SELECT COUNT(*) AS count FROM bookings WHERE listing_id = ? AND status = 'Upcoming'")
+        .prepare("SELECT COUNT(*) AS count FROM bookings WHERE listing_id = ? AND status IN ('Upcoming', 'Offered')")
         .get(listingId) as { count: number };
       if (bookedCount >= listing.capacity) {
         throw new ApiError(409, "This slot just filled up — try another one.");
@@ -179,6 +179,102 @@ router.post(
       businessId: booking.listing_business_id,
       rating,
     });
+  })
+);
+
+// Customer only — an offer a business has made against their open request, still
+// awaiting a yes/no. The mobile app checks this after login and shows an alert.
+router.get(
+  "/pending-offer",
+  requireAuth,
+  requireRole("customer"),
+  asyncHandler(async (req, res) => {
+    const row = db
+      .prepare(
+        `SELECT bk.id AS booking_id, l.business_id, b.name AS business_name,
+                l.service, l.category, l.price, l.discount_percent, l.slot_time
+         FROM bookings bk
+         JOIN listings l ON l.id = bk.listing_id
+         JOIN businesses b ON b.id = l.business_id
+         WHERE bk.user_id = ? AND bk.status = 'Offered'
+         ORDER BY bk.created_at ASC
+         LIMIT 1`
+      )
+      .get(req.user!.sub) as
+      | {
+          booking_id: number;
+          business_id: number;
+          business_name: string;
+          service: string;
+          category: string;
+          price: number;
+          discount_percent: number | null;
+          slot_time: string;
+        }
+      | undefined;
+
+    if (!row) {
+      res.json(null);
+      return;
+    }
+
+    res.json({
+      bookingId: row.booking_id,
+      businessId: row.business_id,
+      businessName: row.business_name,
+      service: row.service,
+      category: row.category,
+      price: row.price,
+      discountPercent: row.discount_percent,
+      slotTime: row.slot_time,
+    });
+  })
+);
+
+// Customer only — accept or decline an offered slot. Declining lets the customer
+// choose whether their request goes back to "open" for other businesses to try,
+// or closes out entirely.
+const respondSchema = z.object({
+  accept: z.boolean(),
+  keepRequestOpen: z.boolean().optional(),
+});
+
+router.post(
+  "/:id/respond",
+  requireAuth,
+  requireRole("customer"),
+  asyncHandler(async (req, res) => {
+    const { accept, keepRequestOpen } = respondSchema.parse(req.body);
+
+    const respond = db.transaction(() => {
+      const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(req.params.id) as
+        | BookingRow
+        | undefined;
+      if (!booking) throw new ApiError(404, "Offer not found.");
+      if (booking.user_id !== req.user!.sub) throw new ApiError(403, "That's not your offer.");
+      if (booking.status !== "Offered") throw new ApiError(400, "This offer has already been responded to.");
+
+      if (accept) {
+        db.prepare("UPDATE bookings SET status = 'Upcoming' WHERE id = ?").run(booking.id);
+        if (booking.request_id) {
+          db.prepare("UPDATE requests SET status = 'matched' WHERE id = ?").run(booking.request_id);
+        }
+      } else {
+        db.prepare("UPDATE bookings SET status = 'Cancelled' WHERE id = ?").run(booking.id);
+        if (booking.request_id) {
+          db.prepare("UPDATE requests SET status = ? WHERE id = ?").run(
+            keepRequestOpen ? "open" : "withdrawn",
+            booking.request_id
+          );
+        }
+      }
+
+      const updated = db.prepare("SELECT * FROM bookings WHERE id = ?").get(booking.id) as BookingRow;
+      return updated;
+    });
+
+    const updated = respond();
+    res.json({ id: updated.id, status: updated.status });
   })
 );
 

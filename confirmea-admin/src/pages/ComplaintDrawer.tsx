@@ -44,9 +44,10 @@ export default function ComplaintDrawer({ complaint, onClose }: Props) {
 
   return (
     <Drawer onClose={onClose}>
-      <h2>{complaint.businessName}</h2>
+      <h2>{complaint.type === "app" ? "Confirmea App" : complaint.businessName}</h2>
       <div className="sub">
-        {complaint.category} · reported by {complaint.complainant} · {formatDateTime(complaint.submittedAt)}
+        {complaint.category} · {complaint.type === "app" ? "from" : "reported by"} {complaint.complainant} ·{" "}
+        {formatDateTime(complaint.submittedAt)}
       </div>
 
       {actionError && (
